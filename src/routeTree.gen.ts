@@ -10,33 +10,63 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as DevicesRouteImport } from './routes/devices'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as PlaylistsRouteImport } from './routes/playlists'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DevicesRoute = DevicesRouteImport.update({
+  id: '/devices',
+  path: '/devices',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlaylistsRoute = PlaylistsRouteImport.update({
+  id: '/playlists',
+  path: '/playlists',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/devices': typeof DevicesRoute
+  '/login': typeof LoginRoute
+  '/playlists': typeof PlaylistsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/devices': typeof DevicesRoute
+  '/login': typeof LoginRoute
+  '/playlists': typeof PlaylistsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/devices': typeof DevicesRoute
+  '/login': typeof LoginRoute
+  '/playlists': typeof PlaylistsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/devices' | '/login' | '/playlists'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/devices' | '/login' | '/playlists'
+  id: '__root__' | '/' | '/devices' | '/login' | '/playlists'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DevicesRoute: typeof DevicesRoute
+  LoginRoute: typeof LoginRoute
+  PlaylistsRoute: typeof PlaylistsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,22 +78,36 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/devices': {
+      id: '/devices'
+      path: '/devices'
+      fullPath: '/devices'
+      preLoaderRoute: typeof DevicesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/playlists': {
+      id: '/playlists'
+      path: '/playlists'
+      fullPath: '/playlists'
+      preLoaderRoute: typeof PlaylistsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DevicesRoute: DevicesRoute,
+  LoginRoute: LoginRoute,
+  PlaylistsRoute: PlaylistsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
