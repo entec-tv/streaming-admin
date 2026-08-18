@@ -1,11 +1,12 @@
 import { Link } from "@tanstack/react-router";
-import { LayoutDashboard, MonitorSmartphone, ListVideo, LogOut, Satellite } from "lucide-react";
+import { LayoutDashboard, MonitorSmartphone, Server, LogOut, Satellite, Package, Tv } from "lucide-react";
 import { useAuth } from "@/store/auth";
 
 const nav = [
   { to: "/", label: "الرئيسية", icon: LayoutDashboard, exact: true },
-  { to: "/devices", label: "إدارة الأجهزة", icon: MonitorSmartphone, exact: false },
-  { to: "/playlists", label: "قوائم التشغيل", icon: ListVideo, exact: false },
+  { to: "/customers", label: "إدارة العملاء", icon: MonitorSmartphone, exact: false },
+  { to: "/hosts", label: "السيرفرات", icon: Server, exact: false },
+  { to: "/plans", label: "باقات التطبيق", icon: Package, exact: false },
 ] as const;
 
 export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {

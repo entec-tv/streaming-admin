@@ -10,18 +10,28 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as DevicesRouteImport } from './routes/devices'
+import { Route as CustomersRouteImport } from './routes/customers'
+import { Route as HostsRouteImport } from './routes/hosts'
 import { Route as LoginRouteImport } from './routes/login'
-import { Route as PlaylistsRouteImport } from './routes/playlists'
+import { Route as PlansRouteImport } from './routes/plans'
+import { Route as CustomerCustomerIdRouteImport } from './routes/customer.$customerId'
+import { Route as PortalIndexRouteImport } from './routes/portal/index'
+import { Route as PortalLoginRouteImport } from './routes/portal/login'
+import { Route as PortalStatusRouteImport } from './routes/portal/status'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DevicesRoute = DevicesRouteImport.update({
-  id: '/devices',
-  path: '/devices',
+const CustomersRoute = CustomersRouteImport.update({
+  id: '/customers',
+  path: '/customers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HostsRoute = HostsRouteImport.update({
+  id: '/hosts',
+  path: '/hosts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -29,44 +39,112 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PlaylistsRoute = PlaylistsRouteImport.update({
-  id: '/playlists',
-  path: '/playlists',
+const PlansRoute = PlansRouteImport.update({
+  id: '/plans',
+  path: '/plans',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CustomerCustomerIdRoute = CustomerCustomerIdRouteImport.update({
+  id: '/customer/$customerId',
+  path: '/customer/$customerId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PortalIndexRoute = PortalIndexRouteImport.update({
+  id: '/portal/',
+  path: '/portal/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PortalLoginRoute = PortalLoginRouteImport.update({
+  id: '/portal/login',
+  path: '/portal/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PortalStatusRoute = PortalStatusRouteImport.update({
+  id: '/portal/status',
+  path: '/portal/status',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/devices': typeof DevicesRoute
+  '/customers': typeof CustomersRoute
+  '/hosts': typeof HostsRoute
   '/login': typeof LoginRoute
-  '/playlists': typeof PlaylistsRoute
+  '/plans': typeof PlansRoute
+  '/customer/$customerId': typeof CustomerCustomerIdRoute
+  '/portal/login': typeof PortalLoginRoute
+  '/portal/status': typeof PortalStatusRoute
+  '/portal/': typeof PortalIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/devices': typeof DevicesRoute
+  '/customers': typeof CustomersRoute
+  '/hosts': typeof HostsRoute
   '/login': typeof LoginRoute
-  '/playlists': typeof PlaylistsRoute
+  '/plans': typeof PlansRoute
+  '/customer/$customerId': typeof CustomerCustomerIdRoute
+  '/portal/login': typeof PortalLoginRoute
+  '/portal/status': typeof PortalStatusRoute
+  '/portal': typeof PortalIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/devices': typeof DevicesRoute
+  '/customers': typeof CustomersRoute
+  '/hosts': typeof HostsRoute
   '/login': typeof LoginRoute
-  '/playlists': typeof PlaylistsRoute
+  '/plans': typeof PlansRoute
+  '/customer/$customerId': typeof CustomerCustomerIdRoute
+  '/portal/login': typeof PortalLoginRoute
+  '/portal/status': typeof PortalStatusRoute
+  '/portal/': typeof PortalIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/devices' | '/login' | '/playlists'
+  fullPaths:
+    | '/'
+    | '/customers'
+    | '/hosts'
+    | '/login'
+    | '/plans'
+    | '/customer/$customerId'
+    | '/portal/login'
+    | '/portal/status'
+    | '/portal/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/devices' | '/login' | '/playlists'
-  id: '__root__' | '/' | '/devices' | '/login' | '/playlists'
+  to:
+    | '/'
+    | '/customers'
+    | '/hosts'
+    | '/login'
+    | '/plans'
+    | '/customer/$customerId'
+    | '/portal/login'
+    | '/portal/status'
+    | '/portal'
+  id:
+    | '__root__'
+    | '/'
+    | '/customers'
+    | '/hosts'
+    | '/login'
+    | '/plans'
+    | '/customer/$customerId'
+    | '/portal/login'
+    | '/portal/status'
+    | '/portal/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  DevicesRoute: typeof DevicesRoute
+  CustomersRoute: typeof CustomersRoute
+  HostsRoute: typeof HostsRoute
   LoginRoute: typeof LoginRoute
-  PlaylistsRoute: typeof PlaylistsRoute
+  PlansRoute: typeof PlansRoute
+  CustomerCustomerIdRoute: typeof CustomerCustomerIdRoute
+  PortalLoginRoute: typeof PortalLoginRoute
+  PortalStatusRoute: typeof PortalStatusRoute
+  PortalIndexRoute: typeof PortalIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -78,11 +156,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/devices': {
-      id: '/devices'
-      path: '/devices'
-      fullPath: '/devices'
-      preLoaderRoute: typeof DevicesRouteImport
+    '/customers': {
+      id: '/customers'
+      path: '/customers'
+      fullPath: '/customers'
+      preLoaderRoute: typeof CustomersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hosts': {
+      id: '/hosts'
+      path: '/hosts'
+      fullPath: '/hosts'
+      preLoaderRoute: typeof HostsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -92,11 +177,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/playlists': {
-      id: '/playlists'
-      path: '/playlists'
-      fullPath: '/playlists'
-      preLoaderRoute: typeof PlaylistsRouteImport
+    '/plans': {
+      id: '/plans'
+      path: '/plans'
+      fullPath: '/plans'
+      preLoaderRoute: typeof PlansRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/customer/$customerId': {
+      id: '/customer/$customerId'
+      path: '/customer/$customerId'
+      fullPath: '/customer/$customerId'
+      preLoaderRoute: typeof CustomerCustomerIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/portal/': {
+      id: '/portal/'
+      path: '/portal'
+      fullPath: '/portal/'
+      preLoaderRoute: typeof PortalIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/portal/login': {
+      id: '/portal/login'
+      path: '/portal/login'
+      fullPath: '/portal/login'
+      preLoaderRoute: typeof PortalLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/portal/status': {
+      id: '/portal/status'
+      path: '/portal/status'
+      fullPath: '/portal/status'
+      preLoaderRoute: typeof PortalStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -104,10 +217,25 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  DevicesRoute: DevicesRoute,
+  CustomersRoute: CustomersRoute,
+  HostsRoute: HostsRoute,
   LoginRoute: LoginRoute,
-  PlaylistsRoute: PlaylistsRoute,
+  PlansRoute: PlansRoute,
+  CustomerCustomerIdRoute: CustomerCustomerIdRoute,
+  PortalLoginRoute: PortalLoginRoute,
+  PortalStatusRoute: PortalStatusRoute,
+  PortalIndexRoute: PortalIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

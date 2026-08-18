@@ -84,11 +84,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "EN TEC Server — لوحة تحكم IPTV" },
       {
         name: "description",
-        content: "لوحة تحكم EN TEC Server لإدارة أجهزة IPTV وقوائم التشغيل مركزياً.",
+        content: "لوحة تحكم EN TEC Server لإدارة أجهزة IPTV والسيرفرات مركزياً.",
       },
       { name: "author", content: "EN TEC" },
       { property: "og:title", content: "EN TEC Server — لوحة تحكم IPTV" },
-      { property: "og:description", content: "إدارة الأجهزة وقوائم التشغيل من مكان واحد." },
+      { property: "og:description", content: "إدارة الأجهزة والسيرفرات من مكان واحد." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@Lovable" },

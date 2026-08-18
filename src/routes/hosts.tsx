@@ -18,41 +18,50 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useData } from "@/store/data-store";
-import type { Playlist } from "@/services/types";
+import type { Host } from "@/services/types";
 
-export const Route = createFileRoute("/playlists")({
+export const Route = createFileRoute("/hosts")({
   head: () => ({
     meta: [
-      { title: "قوائم التشغيل — EN TEC Server" },
+      { title: "السيرفرات — EN TEC Server" },
       {
         name: "description",
-        content: "إضافة وتعديل وحذف قوائم تشغيل IPTV (Host, Username, Password) وربطها بالأجهزة.",
+        content: "إضافة وتعديل وحذف سيرفرات IPTV (Host) وربطها بالأجهزة.",
       },
-      { property: "og:title", content: "قوائم التشغيل — EN TEC Server" },
+      { property: "og:title", content: "السيرفرات — EN TEC Server" },
       { property: "og:description", content: "إدارة مصادر البث المرتبطة بأجهزة العملاء." },
     ],
   }),
   component: () => (
     <RequireAuth>
-      <PlaylistsPage />
+      <HostsPage />
     </RequireAuth>
   ),
 });
 
 const schema = z.object({
-  name: z.string().trim().min(2, { message: "اسم القائمة قصير جداً" }).max(60),
-  host: z.string().trim().url({ message: "الرابط (Host) غير صالح" }).max(255),
-  username: z.string().trim().min(2, { message: "اسم المستخدم مطلوب" }).max(80),
-  password: z.string().trim().min(2, { message: "كلمة المرور مطلوبة" }).max(80),
+  name: z.string().trim().min(2, { message: "اسم السيرفر قصير جداً" }).max(60),
+  url: z.string().trim().url({ message: "الرابط (Host) غير صالح" }).max(255),
 });
 
-const empty = { name: "", host: "", username: "", password: "" };
+const empty = { name: "", url: "" };
 
-function PlaylistsPage() {
-  const { playlists, addPlaylist, updatePlaylist, deletePlaylist, devicesCount } = useData();
+function HostsPage() {
+  const { hosts, addHost, updateHost, deleteHost, customers } = useData();
   const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<Playlist | null>(null);
+  const [editing, setEditing] = useState<Host | null>(null);
   const [form, setForm] = useState(empty);
+
+  const getDevicesCount = (hostId: string) => {
+    let count = 0;
+    customers.forEach(c => {
+      const subsForHost = c.subscriptions?.filter(s => 
+        (typeof s.host === 'string' ? s.host : s.host?._id) === hostId
+      ) || [];
+      count += subsForHost.length;
+    });
+    return count;
+  };
 
   const openCreate = () => {
     setEditing(null);
@@ -60,9 +69,9 @@ function PlaylistsPage() {
     setOpen(true);
   };
 
-  const openEdit = (p: Playlist) => {
+  const openEdit = (p: Host) => {
     setEditing(p);
-    setForm({ name: p.name, host: p.host, username: p.username, password: p.password });
+    setForm({ name: p.name, url: p.url });
     setOpen(true);
   };
 
@@ -73,54 +82,50 @@ function PlaylistsPage() {
       return;
     }
     if (editing) {
-      updatePlaylist(editing.id, parsed.data);
-      toast.success("تم تعديل قائمة التشغيل");
+      updateHost(editing._id, parsed.data);
+      toast.success("تم تعديل السيرفر");
     } else {
-      addPlaylist(parsed.data);
-      toast.success("تمت إضافة قائمة التشغيل");
+      addHost(parsed.data);
+      toast.success("تمت إضافة السيرفر");
     }
     setOpen(false);
   };
 
   return (
     <AppShell
-      title="إدارة قوائم التشغيل"
+      title="إدارة السيرفرات (Hosts)"
       description="مصادر البث المتاحة للأجهزة"
       actions={
         <Button className="font-bold" onClick={openCreate}>
-          <Plus /> إضافة قائمة
+          <Plus /> إضافة سيرفر
         </Button>
       }
     >
       <Card className="surface-card border-border/70 p-0">
         <div className="border-b border-border/70 px-5 py-4">
-          <h2 className="text-base font-extrabold">القوائم ({playlists.length})</h2>
+          <h2 className="text-base font-extrabold">السيرفرات ({hosts.length})</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-right text-sm">
             <thead className="text-xs text-muted-foreground">
               <tr className="border-b border-border/70">
-                <th className="px-5 py-3 font-bold">اسم القائمة</th>
-                <th className="px-5 py-3 font-bold">الرابط (Host)</th>
-                <th className="px-5 py-3 font-bold">اسم المستخدم</th>
+                <th className="px-5 py-3 font-bold">اسم السيرفر</th>
+                <th className="px-5 py-3 font-bold">الرابط (Host URL)</th>
                 <th className="px-5 py-3 font-bold">الأجهزة المرتبطة</th>
                 <th className="px-5 py-3 font-bold">تاريخ الإنشاء</th>
                 <th className="px-5 py-3 font-bold">إجراءات</th>
               </tr>
             </thead>
             <tbody>
-              {playlists.map((p) => (
-                <tr key={p.id} className="border-b border-border/50 last:border-0 hover:bg-muted/40">
+              {hosts.map((p) => (
+                <tr key={p._id} className="border-b border-border/50 last:border-0 hover:bg-muted/40">
                   <td className="px-5 py-3 font-semibold">{p.name}</td>
                   <td className="px-5 py-3 font-mono text-xs" dir="ltr">
-                    {p.host}
-                  </td>
-                  <td className="px-5 py-3 font-mono text-xs" dir="ltr">
-                    {p.username}
+                    {p.url}
                   </td>
                   <td className="px-5 py-3">
                     <span className="rounded-full bg-primary/15 px-2.5 py-1 text-xs font-bold text-primary">
-                      {devicesCount(p.id)} جهاز
+                      {getDevicesCount(p._id)} أجهزة
                     </span>
                   </td>
                   <td className="px-5 py-3 text-muted-foreground">{p.createdAt}</td>
@@ -134,8 +139,8 @@ function PlaylistsPage() {
                         size="icon"
                         title="حذف"
                         onClick={() => {
-                          deletePlaylist(p.id);
-                          toast.success("تم حذف قائمة التشغيل");
+                          deleteHost(p._id);
+                          toast.success("تم حذف السيرفر");
                         }}
                       >
                         <Trash2 className="size-4 text-destructive" />
@@ -144,10 +149,10 @@ function PlaylistsPage() {
                   </td>
                 </tr>
               ))}
-              {playlists.length === 0 ? (
+              {hosts.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-10 text-center text-muted-foreground">
-                    لا توجد قوائم تشغيل بعد
+                  <td colSpan={5} className="px-5 py-10 text-center text-muted-foreground">
+                    لا توجد سيرفرات بعد
                   </td>
                 </tr>
               ) : null}
@@ -159,55 +164,31 @@ function PlaylistsPage() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{editing ? "تعديل قائمة التشغيل" : "إضافة قائمة تشغيل"}</DialogTitle>
+            <DialogTitle>{editing ? "تعديل السيرفر" : "إضافة سيرفر"}</DialogTitle>
             <DialogDescription>أدخل بيانات الاتصال بالسيرفر.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="pname">اسم القائمة</Label>
+              <Label htmlFor="pname">اسم السيرفر</Label>
               <Input
                 id="pname"
                 value={form.name}
                 maxLength={60}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="مثال: الباقة الذهبية"
+                placeholder="مثال: السيرفر الرئيسي"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="host">Host</Label>
+              <Label htmlFor="host">Host URL</Label>
               <Input
                 id="host"
                 dir="ltr"
                 className="text-right font-mono"
-                value={form.host}
+                value={form.url}
                 maxLength={255}
-                onChange={(e) => setForm({ ...form, host: e.target.value })}
-                placeholder="http://server.tv:8080"
+                onChange={(e) => setForm({ ...form, url: e.target.value })}
+                placeholder="http://tv.business-cdn-8k.com"
               />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="user">Username</Label>
-                <Input
-                  id="user"
-                  dir="ltr"
-                  className="text-right font-mono"
-                  value={form.username}
-                  maxLength={80}
-                  onChange={(e) => setForm({ ...form, username: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="pass">Password</Label>
-                <Input
-                  id="pass"
-                  dir="ltr"
-                  className="text-right font-mono"
-                  value={form.password}
-                  maxLength={80}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                />
-              </div>
             </div>
           </div>
           <DialogFooter>

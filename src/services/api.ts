@@ -5,7 +5,7 @@ import axios from "axios";
  * غيّر VITE_API_URL في ملف البيئة عند ربط الـ API الحقيقي.
  */
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? "http://localhost:3000/api",
+  baseURL: import.meta.env.VITE_API_URL ?? "https://entecstreamingnestjs-production.up.railway.app/api",
   headers: { "Content-Type": "application/json" },
   timeout: 15000,
 });
@@ -23,6 +23,8 @@ api.interceptors.response.use(
   (error) => {
     if (error?.response?.status === 401 && typeof window !== "undefined") {
       window.localStorage.removeItem("entec_token");
+      window.localStorage.removeItem("entec_admin");
+      window.dispatchEvent(new Event("auth:logout"));
     }
     return Promise.reject(error);
   },
@@ -31,10 +33,14 @@ api.interceptors.response.use(
 /** نقاط النهاية المتوقعة من NestJS API. */
 export const endpoints = {
   login: "/auth/login",
-  devices: "/devices",
-  device: (id: string) => `/devices/${id}`,
-  linkPlaylist: (id: string) => `/devices/${id}/playlist`,
-  playlists: "/playlists",
-  playlist: (id: string) => `/playlists/${id}`,
+  customers: "/customers",
+  customerStats: "/customers/stats",
+  customer: (id: string) => `/customers/${id}`,
+  customerDevices: (id: string) => `/customers/${id}/devices`,
+  customerDevice: (id: string, mac: string) => `/customers/${id}/devices/${mac}`,
+  hosts: "/hosts",
+  host: (id: string) => `/hosts/${id}`,
   stats: "/stats",
+  plans: "/admin/plans",
+  plan: (id: string) => `/admin/plans/${id}`,
 };

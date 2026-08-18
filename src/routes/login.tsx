@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/store/auth";
+import { api, endpoints } from "@/services/api";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -44,13 +45,19 @@ function LoginPage() {
       return;
     }
     setLoading(true);
-    // بيانات وهمية مؤقتة — استبدلها بـ api.post(endpoints.login, ...) عند ربط NestJS
-    setTimeout(() => {
-      setLoading(false);
-      login(parsed.data.email);
-      toast.success("تم تسجيل الدخول بنجاح");
-      navigate({ to: "/" });
-    }, 600);
+    api.post(endpoints.login, { username: parsed.data.email, password: parsed.data.password })
+      .then((response) => {
+        setLoading(false);
+        const { access_token, admin } = response.data;
+        login(admin.username, access_token);
+        toast.success("تم تسجيل الدخول بنجاح");
+        navigate({ to: "/" });
+      })
+      .catch((error) => {
+        setLoading(false);
+        const errorMsg = error.response?.data?.message || "خطأ في الاتصال بالخادم";
+        toast.error(errorMsg);
+      });
   };
 
   return (
@@ -102,9 +109,6 @@ function LoginPage() {
           <Button type="submit" className="w-full font-bold" disabled={loading}>
             {loading ? "جارٍ الدخول..." : "تسجيل الدخول"}
           </Button>
-          <p className="text-center text-xs text-muted-foreground">
-            وضع تجريبي: أي بريد صالح وكلمة مرور من 6 أحرف
-          </p>
         </form>
       </div>
     </div>

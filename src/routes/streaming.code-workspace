@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "../../../streaming"
+		},
+		{
+			"path": "../.."
+		},
+		{
+			"path": "../../../streaming-nest"
+		}
+	],
+	"settings": {}
+}
