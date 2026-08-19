@@ -5,7 +5,7 @@ import axios from "axios";
  * غيّر VITE_API_URL في ملف البيئة عند ربط الـ API الحقيقي.
  */
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? "https://entecstreamingnestjs-production.up.railway.app/api",
+  baseURL: "https://entecstreamingnestjs-production.up.railway.app/api",
   headers: { "Content-Type": "application/json" },
   timeout: 15000,
 });
