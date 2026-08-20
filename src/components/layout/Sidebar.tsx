@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { LayoutDashboard, MonitorSmartphone, Server, LogOut, Satellite, Package, Tv } from "lucide-react";
+import { LayoutDashboard, MonitorSmartphone, Server, LogOut, Satellite, Package, Users } from "lucide-react";
 import { useAuth } from "@/store/auth";
 
 const nav = [
@@ -7,6 +7,7 @@ const nav = [
   { to: "/customers", label: "إدارة العملاء", icon: MonitorSmartphone, exact: false },
   { to: "/hosts", label: "السيرفرات", icon: Server, exact: false },
   { to: "/plans", label: "باقات التطبيق", icon: Package, exact: false },
+  { to: "/admin-users", label: "مستخدمين اللوحة", icon: Users, exact: false },
 ] as const;
 
 export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {

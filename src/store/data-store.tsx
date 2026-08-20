@@ -8,6 +8,8 @@ import type {
   AppPlan,
   CreateAppPlanInput,
   Device,
+  AdminUser,
+  CreateAdminUserInput,
 } from "@/services/types";
 import { api, endpoints } from "@/services/api";
 import { useAuth } from "./auth";
@@ -35,6 +37,12 @@ interface DataContextValue {
   addPlan: (input: CreateAppPlanInput) => void;
   updatePlan: (id: string, input: Partial<CreateAppPlanInput>) => void;
   deletePlan: (id: string) => void;
+
+  admins: AdminUser[];
+  fetchAdmins: () => Promise<void>;
+  addAdmin: (input: CreateAdminUserInput) => void;
+  updateAdmin: (id: string, input: Partial<CreateAdminUserInput>) => void;
+  deleteAdmin: (id: string) => void;
 }
 
 const DataContext = createContext<DataContextValue | null>(null);
@@ -81,12 +89,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [hosts, setHosts] = useState<Host[]>([]);
   const [plans, setPlans] = useState<AppPlan[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
+  const [admins, setAdmins] = useState<AdminUser[]>([]);
   const { isAuthed } = useAuth();
 
   useEffect(() => {
     if (!isAuthed) return;
 
     fetchDevices();
+    fetchAdmins();
 
     api.get(endpoints.hosts)
       .then((res) => setHosts(res.data.map(mapHost)))
@@ -241,13 +251,59 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const fetchAdmins = useCallback(async () => {
+    try {
+      const res = await api.get(endpoints.admins);
+      setAdmins(res.data);
+    } catch (err) {
+      if ((err as any)?.response?.status !== 401) {
+        toast.error("خطأ في تحميل مدراء النظام");
+      }
+    }
+  }, []);
+
+  const addAdmin = useCallback((input: CreateAdminUserInput) => {
+    api.post(endpoints.admins, input)
+      .then((res) => {
+        setAdmins((prev) => [res.data, ...prev]);
+        toast.success("تم إضافة المدير بنجاح");
+      })
+      .catch((err) => {
+        toast.error(err.response?.data?.message || "خطأ في إضافة المدير");
+      });
+  }, []);
+
+  const updateAdmin = useCallback((id: string, input: Partial<CreateAdminUserInput>) => {
+    api.put(endpoints.admin(id), input)
+      .then((res) => {
+        setAdmins((prev) => prev.map((a) => (a._id === id ? { ...a, ...res.data } : a)));
+        toast.success("تم تحديث بيانات المدير بنجاح");
+      })
+      .catch((err) => {
+        toast.error(err.response?.data?.message || "خطأ في تحديث بيانات المدير");
+      });
+  }, []);
+
+  const deleteAdmin = useCallback((id: string) => {
+    api.delete(endpoints.admin(id))
+      .then(() => {
+        setAdmins((prev) => prev.filter((a) => a._id !== id));
+        toast.success("تم حذف المدير بنجاح");
+      })
+      .catch((err) => {
+        toast.error(err.response?.data?.message || "خطأ في حذف المدير");
+      });
+  }, []);
+
   const value = useMemo<DataContextValue>(
     () => ({
       customers,
       hosts,
       plans,
       devices,
+      admins,
       fetchDevices,
+      fetchAdmins,
       addCustomer,
       updateCustomer,
       updateCustomerStatus,
@@ -258,6 +314,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       addPlan,
       updatePlan,
       deletePlan,
+      addAdmin,
+      updateAdmin,
+      deleteAdmin,
       hostName: (id) => hosts.find((p) => p._id === id)?.name ?? "غير مرتبطة",
       customersCount: (hostId) => customers.filter((c) => c.subscriptions.some(s => (typeof s.host === 'string' ? s.host : s.host?._id) === hostId)).length,
     }),
@@ -275,6 +334,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
       addPlan,
       updatePlan,
       deletePlan,
+      admins,
+      addAdmin,
+      updateAdmin,
+      deleteAdmin,
     ],
   );
 

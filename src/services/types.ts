@@ -1,6 +1,15 @@
 export type CustomerStatus = "active" | "blocked";
 export type DeviceStatus = "active" | "inactive" | "blocked";
 
+export interface AdminUser {
+  _id: string;
+  username: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreateAdminUserInput = Omit<AdminUser, "_id" | "createdAt" | "updatedAt"> & { password?: string };
+
 export interface Host {
   _id: string;
   name: string;

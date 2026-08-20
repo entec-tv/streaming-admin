@@ -43,4 +43,6 @@ export const endpoints = {
   stats: "/stats",
   plans: "/admin/plans",
   plan: (id: string) => `/admin/plans/${id}`,
+  admins: "/auth/admins",
+  admin: (id: string) => `/auth/admins/${id}`,
 };
