@@ -248,7 +248,10 @@ function CustomersPage() {
                   </td>
                   <td className="px-5 py-3 text-muted-foreground">
                     {c.subscriptions.length > 0 
-                      ? [...c.subscriptions].sort((a, b) => new Date(b.lastActive || 0).getTime() - new Date(a.lastActive || 0).getTime())[0].lastActive || "-"
+                      ? (() => {
+                          const latest = [...c.subscriptions].sort((a, b) => new Date(b.lastActive || 0).getTime() - new Date(a.lastActive || 0).getTime())[0]?.lastActive;
+                          return latest ? new Date(latest).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }) : "-";
+                        })()
                       : "لا يوجد أجهزة"}
                   </td>
                   <td className="px-5 py-3">

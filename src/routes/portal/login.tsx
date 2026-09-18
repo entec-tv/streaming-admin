@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/services/api";
+import { formatMacAddress } from "@/lib/utils";
 
 export const Route = createFileRoute("/portal/login")({
   head: () => ({
@@ -78,7 +79,8 @@ function PortalLogin() {
                 type="text"
                 placeholder="00:1A:79:XX:XX:XX"
                 value={macAddress}
-                onChange={(e) => setMacAddress(e.target.value.toUpperCase())}
+                onChange={(e) => setMacAddress(formatMacAddress(e.target.value, macAddress))}
+                maxLength={17}
                 className="h-12 text-center text-lg tracking-widest font-mono bg-black/50 border-white/10 text-white placeholder:text-zinc-600 focus-visible:ring-yellow-500"
                 dir="ltr"
                 required

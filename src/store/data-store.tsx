@@ -67,7 +67,7 @@ const mapCustomer = (c: any): Customer => ({
     host: s.host,
     macAddress: s.macAddress,
     deviceKey: s.deviceKey,
-    lastActive: s.lastActive ? s.lastActive.slice(0, 10) : "",
+    lastActive: s.lastActive || "",
     appActive: s.appActive,
     appExpiry: s.appExpiry,
   })),

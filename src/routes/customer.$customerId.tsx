@@ -26,6 +26,7 @@ import {
 import { useData } from "@/store/data-store";
 import { useAuth } from "@/store/auth";
 import { api } from "@/services/api";
+import { formatMacAddress } from "@/lib/utils";
 
 export const Route = createFileRoute("/customer/$customerId")({
   head: () => ({
@@ -286,7 +287,7 @@ function CustomerDetailsPage() {
     const dev = groupedDevices.find(d => d.macAddress === mac);
     if (!dev) return;
     setEditingMac(mac);
-    setNewMac(dev.macAddress);
+    setNewMac(formatMacAddress(dev.macAddress));
     setNewDeviceKey(dev.deviceKey);
     setNewAppActive(dev.appActive ? "true" : "false");
     if (!dev.appExpiry) {
@@ -333,10 +334,7 @@ function CustomerDetailsPage() {
   };
 
   const formatMacForDisplay = (mac: string) => {
-    if (mac.length === 12 && !mac.includes(':')) {
-      return mac.match(/.{1,2}/g)?.join(':') || mac;
-    }
-    return mac;
+    return formatMacAddress(mac) || mac;
   };
 
   return (
@@ -511,7 +509,7 @@ function CustomerDetailsPage() {
               </div>
               <div className="space-y-1">
                 <Label>الماك أدرس (MAC)</Label>
-                <Input dir="ltr" className="font-mono text-right" placeholder="AA:BB:CC:11:22:33" value={newMac} onChange={e => setNewMac(e.target.value)} maxLength={17} />
+                <Input dir="ltr" className="font-mono text-right" placeholder="AA:BB:CC:11:22:33" value={newMac} onChange={e => setNewMac(formatMacAddress(e.target.value, newMac))} maxLength={17} />
               </div>
               <div className="space-y-1">
                 <Label>مفتاح الجهاز (Device Key)</Label>
@@ -569,7 +567,7 @@ function CustomerDetailsPage() {
             <div className="space-y-4 mt-4">
               <div className="space-y-1">
                 <Label>الماك أدرس (MAC)</Label>
-                <Input dir="ltr" className="font-mono text-right" placeholder="AA:BB:CC:11:22:33" value={newMac} onChange={e => setNewMac(e.target.value)} maxLength={17} />
+                <Input dir="ltr" className="font-mono text-right" placeholder="AA:BB:CC:11:22:33" value={newMac} onChange={e => setNewMac(formatMacAddress(e.target.value, newMac))} maxLength={17} />
               </div>
               <div className="space-y-1">
                 <Label>مفتاح الجهاز (Device Key)</Label>
