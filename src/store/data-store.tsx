@@ -107,7 +107,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       });
 
     api.get(endpoints.customers)
-      .then((res) => setCustomers(res.data.map(mapCustomer)))
+      .then((res) => {
+        // Exclude external CRM contacts that have phone numbers and belong to CRM sales/orders
+        const streamingOnly = (res.data || []).filter((c: any) => !c.phone);
+        setCustomers(streamingOnly.map(mapCustomer));
+      })
       .catch((err) => {
         if (err?.response?.status !== 401) {
           toast.error("خطأ في تحميل العملاء من الخادم");
