@@ -46,6 +46,7 @@ function PortalDashboard() {
   const [xtreamUsername, setXtreamUsername] = useState("");
   const [xtreamPassword, setXtreamPassword] = useState("");
   const [xtreamHost, setXtreamHost] = useState("");
+  const [availableHosts, setAvailableHosts] = useState<{ _id: string; name: string; url: string }[]>([]);
 
   useEffect(() => {
     const dataStr = localStorage.getItem("portal_auth");
@@ -77,6 +78,12 @@ function PortalDashboard() {
           navigate({ to: "/portal/login", replace: true });
         }
       });
+
+    api.get("/portal/hosts").then((res) => {
+      if (res.data && Array.isArray(res.data)) {
+        setAvailableHosts(res.data);
+      }
+    }).catch(() => {});
   }, [navigate]);
 
   const handleLogout = () => {
@@ -191,6 +198,14 @@ function PortalDashboard() {
     }
   };
 
+  const handleOpenXtreamAdd = () => {
+    setEditingXtreamId(null);
+    setXtreamUsername("");
+    setXtreamPassword("");
+    setXtreamHost("");
+    setIsXtreamOpen(true);
+  };
+
   const handleOpenXtream = (sub: any) => {
     setEditingXtreamId(sub._id);
     setXtreamUsername(sub.username);
@@ -201,26 +216,38 @@ function PortalDashboard() {
 
   const handleSaveXtream = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingXtreamId || !xtreamUsername || !xtreamPassword || !xtreamHost) return;
+    if (!xtreamUsername || !xtreamPassword || !xtreamHost) return;
     setSaving(true);
     try {
-      await api.post(`/portal/subscription/update/${editingXtreamId}`, {
-        macAddress: authData.macAddress,
-        deviceKey: authData.deviceKey,
-        data: { username: xtreamUsername, password: xtreamPassword, host: xtreamHost }
-      });
-      toast.success("تم تعديل الاشتراك بنجاح");
-      
-      const newSubs = subscriptions.map(s => {
-        if (s._id === editingXtreamId) {
-          return { ...s, username: xtreamUsername, password: xtreamPassword, hostUrl: xtreamHost, hostName: xtreamHost };
+      if (editingXtreamId) {
+        await api.post(`/portal/subscription/update/${editingXtreamId}`, {
+          macAddress: authData.macAddress,
+          deviceKey: authData.deviceKey,
+          data: { username: xtreamUsername, password: xtreamPassword, host: xtreamHost }
+        });
+        toast.success("تم تعديل الاشتراك بنجاح");
+        
+        const newSubs = subscriptions.map(s => {
+          if (s._id === editingXtreamId) {
+            return { ...s, username: xtreamUsername, password: xtreamPassword, hostUrl: xtreamHost, hostName: xtreamHost };
+          }
+          return s;
+        });
+        setSubscriptions(newSubs);
+      } else {
+        const res = await api.post("/portal/subscription/add", {
+          macAddress: authData.macAddress,
+          deviceKey: authData.deviceKey,
+          data: { username: xtreamUsername, password: xtreamPassword, host: xtreamHost }
+        });
+        toast.success("تمت إضافة اشتراك Xtream بنجاح");
+        if (res.data?.subscription) {
+          setSubscriptions([...subscriptions, res.data.subscription]);
         }
-        return s;
-      });
-      setSubscriptions(newSubs);
+      }
       setIsXtreamOpen(false);
     } catch (err: any) {
-      toast.error("حدث خطأ أثناء التعديل");
+      toast.error(err.response?.data?.message || "حدث خطأ أثناء الحفظ");
     } finally {
       setSaving(false);
     }
@@ -260,15 +287,21 @@ function PortalDashboard() {
         
         {/* Unified Playlists */}
         <section className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-xl font-bold flex items-center gap-2 text-white">
               <ListVideo className="w-5 h-5 text-yellow-500" />
               قوائم التشغيل الخاصة بك
             </h2>
-            <Button onClick={() => handleOpenM3u()} className="bg-yellow-500 hover:bg-yellow-600 text-black font-bold gap-2">
-              <Plus className="w-4 h-4" />
-              إضافة قائمة M3U
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button onClick={handleOpenXtreamAdd} variant="outline" className="border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/10 font-bold gap-2">
+                <Plus className="w-4 h-4" />
+                إضافة اشتراك (Xtream)
+              </Button>
+              <Button onClick={() => handleOpenM3u()} className="bg-yellow-500 hover:bg-yellow-600 text-black font-bold gap-2">
+                <Plus className="w-4 h-4" />
+                إضافة قائمة M3U
+              </Button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -385,13 +418,34 @@ function PortalDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Xtream Edit Dialog */}
+      {/* Xtream Edit / Add Dialog */}
       <Dialog open={isXtreamOpen} onOpenChange={setIsXtreamOpen}>
-        <DialogContent className="sm:max-w-[425px] bg-zinc-950 border-white/10 text-white" dir="rtl">
+        <DialogContent className="sm:max-w-[450px] bg-zinc-950 border-white/10 text-white" dir="rtl">
           <DialogHeader>
-            <DialogTitle>تعديل الاشتراك (Xtream)</DialogTitle>
+            <DialogTitle>{editingXtreamId !== null ? "تعديل الاشتراك (Xtream)" : "إضافة اشتراك (Xtream) جديد"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSaveXtream} className="space-y-4 pt-4">
+            {availableHosts.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-zinc-200 text-xs">سيرفرات سريعة معتمدة (أو اكتب سيرفراً آخر بالأسفل):</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {availableHosts.map((h) => (
+                    <button
+                      key={h._id}
+                      type="button"
+                      className={`text-xs px-2.5 py-1 rounded-md border transition-all ${
+                        xtreamHost === h.url 
+                          ? "border-yellow-500 bg-yellow-500/20 text-yellow-400 font-bold shadow-sm" 
+                          : "border-white/10 bg-zinc-900 text-zinc-300 hover:border-white/30"
+                      }`}
+                      onClick={() => setXtreamHost(h.url)}
+                    >
+                      {h.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               <Label className="text-zinc-200">رابط السيرفر (Host URL)</Label>
               <Input 
@@ -402,6 +456,9 @@ function PortalDashboard() {
                 className="font-mono text-left bg-black/50 border-white/10 focus-visible:ring-yellow-500"
                 required
               />
+              <p className="text-[11px] text-zinc-500">
+                يمكنك كتابة أي رابط سيرفر خاص بك إذا لم يكن مسجلاً في السيرفرات المعتمدة.
+              </p>
             </div>
             <div className="space-y-2">
               <Label className="text-zinc-200">اسم المستخدم (Username)</Label>
@@ -426,7 +483,7 @@ function PortalDashboard() {
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" variant="ghost" onClick={() => setIsXtreamOpen(false)}>إلغاء</Button>
               <Button type="submit" disabled={saving} className="bg-yellow-500 hover:bg-yellow-600 text-black font-bold">
-                {saving ? "جاري الحفظ..." : "حفظ التعديلات"}
+                {saving ? "جاري الحفظ..." : (editingXtreamId !== null ? "حفظ التعديلات" : "إضافة الاشتراك")}
               </Button>
             </div>
           </form>

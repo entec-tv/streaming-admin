@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { z } from "zod";
@@ -51,6 +51,23 @@ function HostsPage() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Host | null>(null);
   const [form, setForm] = useState(empty);
+
+  const externalHosts = useMemo(() => {
+    const map = new Map<string, { url: string; count: number; customers: string[] }>();
+    customers.forEach(c => {
+      c.subscriptions?.forEach(s => {
+        const raw = typeof s.host === 'string' ? s.host : (s.host?.url || '');
+        if (raw && raw !== '__none__' && !hosts.some(h => h._id === raw || h.url === raw || (h.url && raw && h.url.replace(/\/+$/, '') === raw.replace(/\/+$/, '')))) {
+          const clean = raw.trim();
+          const existing = map.get(clean) || { url: clean, count: 0, customers: [] };
+          existing.count++;
+          if (!existing.customers.includes(c.name)) existing.customers.push(c.name);
+          map.set(clean, existing);
+        }
+      });
+    });
+    return Array.from(map.values());
+  }, [customers, hosts]);
 
   const getDevicesCount = (hostId: string) => {
     let count = 0;
@@ -160,6 +177,51 @@ function HostsPage() {
           </table>
         </div>
       </Card>
+
+      {externalHosts.length > 0 && (
+        <Card className="surface-card border-amber-500/30 p-0 mt-6 overflow-hidden">
+          <div className="border-b border-border/70 px-5 py-4 bg-amber-500/5">
+            <h2 className="text-base font-extrabold text-amber-400">سيرفرات مضافة من قبل العملاء ({externalHosts.length})</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">سيرفرات ودومينات أضافها العملاء من لوحاتهم وليست مسجلة بعد في قائمة السيرفرات الرسمية</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-right text-sm">
+              <thead className="text-xs text-muted-foreground">
+                <tr className="border-b border-border/70">
+                  <th className="px-5 py-3 font-bold">الدومين / الرابط</th>
+                  <th className="px-5 py-3 font-bold">العملاء المرتبطين</th>
+                  <th className="px-5 py-3 font-bold">عدد الاشتراكات</th>
+                  <th className="px-5 py-3 font-bold text-center">إجراءات</th>
+                </tr>
+              </thead>
+              <tbody>
+                {externalHosts.map((ext, i) => (
+                  <tr key={i} className="border-b border-border/40 last:border-0 hover:bg-muted/30">
+                    <td className="px-5 py-3 font-mono font-bold text-xs" dir="ltr">{ext.url}</td>
+                    <td className="px-5 py-3 text-xs text-muted-foreground">{ext.customers.join(', ')}</td>
+                    <td className="px-5 py-3 font-bold text-primary">{ext.count}</td>
+                    <td className="px-5 py-3 text-center">
+                      <Button 
+                        size="sm" 
+                        variant="secondary" 
+                        className="text-xs bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/20"
+                        onClick={() => {
+                          setEditing(null);
+                          let defaultName = ext.url.replace(/^https?:\/\//, '').split(/[:/]/)[0];
+                          setForm({ name: defaultName, url: ext.url });
+                          setOpen(true);
+                        }}
+                      >
+                        <Plus className="size-3.5 mr-1" /> إضافة إلى السيرفرات المعتمدة
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">

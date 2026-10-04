@@ -320,9 +320,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
       deletePlan,
       addAdmin,
       updateAdmin,
-      deleteAdmin,
-      hostName: (id) => hosts.find((p) => p._id === id)?.name ?? "غير مرتبطة",
-      customersCount: (hostId) => customers.filter((c) => c.subscriptions.some(s => (typeof s.host === 'string' ? s.host : s.host?._id) === hostId)).length,
+      hostName: (id) => {
+        if (!id) return "غير مرتبطة";
+        if (typeof id === 'object') {
+          return (id as any).name || (id as any).url || "سيرفر";
+        }
+        const found = hosts.find((p) => p._id === id || p.url === id || (typeof id === 'string' && p.url && p.url.replace(/\/+$/, '') === id.replace(/\/+$/, '')));
+        if (found) return found.name;
+        if (typeof id === 'string' && id !== "__none__" && id.trim()) {
+          const display = id.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+          return `آخر (${display})`;
+        }
+        return "غير مرتبطة";
+      },
     }),
     [
       customers,

@@ -44,6 +44,7 @@ export const Route = createFileRoute("/customer/$customerId")({
 const macSchema = z.string().trim().regex(/^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/, { message: "تنسيق الماك أدرس غير صحيح (AA:BB:CC:11:22:33)" });
 const customerSchema = z.object({ name: z.string().trim().min(2, "الاسم قصير جداً") });
 const NONE = "__none__";
+const CUSTOM_OPTION = "__custom__";
 
 function CustomerDetailsPage() {
   const { customerId } = Route.useParams();
@@ -83,6 +84,7 @@ function CustomerDetailsPage() {
   const [subUsername, setSubUsername] = useState("");
   const [subPassword, setSubPassword] = useState("");
   const [subHostId, setSubHostId] = useState<string>(NONE);
+  const [customHostUrl, setCustomHostUrl] = useState("");
   const [newMac, setNewMac] = useState("");
   const [newDeviceKey, setNewDeviceKey] = useState("");
   const [newAppActive, setNewAppActive] = useState<"true"|"false">("true");
@@ -181,10 +183,20 @@ function CustomerDetailsPage() {
     const appExpiry = getParsedExpiry();
     if (appExpiry === undefined) return; // Error occurred
 
+    if (subHostId === NONE) {
+      toast.error("يرجى اختيار السيرفر");
+      return;
+    }
+    if (subHostId === CUSTOM_OPTION && !customHostUrl.trim()) {
+      toast.error("يرجى كتابة رابط الدومين أو السيرفر");
+      return;
+    }
+    const finalHost = subHostId === CUSTOM_OPTION ? customHostUrl.trim() : subHostId;
+
     const newSub = {
       username: subUsername.trim(),
       password: subPassword.trim(),
-      host: subHostId,
+      host: finalHost,
       status: "active" as const,
       macAddress: newMac,
       deviceKey: newDeviceKey,
@@ -240,6 +252,12 @@ function CustomerDetailsPage() {
       toast.error("يرجى تعبئة اليوزرنيم، واختيار السيرفر");
       return;
     }
+    if (subHostId === CUSTOM_OPTION && !customHostUrl.trim()) {
+      toast.error("يرجى كتابة رابط الدومين أو السيرفر");
+      return;
+    }
+
+    const finalHost = subHostId === CUSTOM_OPTION ? customHostUrl.trim() : subHostId;
 
     const updatedSubs = [...customer.subscriptions].map(s => ({
       ...s,
@@ -252,7 +270,7 @@ function CustomerDetailsPage() {
         ...updatedSubs[editingSubIdx],
         username: subUsername.trim(),
         password: subPassword.trim(),
-        host: subHostId,
+        host: finalHost,
       };
     } else {
       // Add new sub to targetMac
@@ -262,7 +280,7 @@ function CustomerDetailsPage() {
       const newSub = {
         username: subUsername.trim(),
         password: subPassword.trim(),
-        host: subHostId,
+        host: finalHost,
         status: "active" as const,
         macAddress: dev.macAddress,
         deviceKey: dev.deviceKey,
@@ -277,7 +295,7 @@ function CustomerDetailsPage() {
   };
 
   const handleOpenFullAdd = () => {
-    setSubUsername(""); setSubPassword(""); setSubHostId(NONE);
+    setSubUsername(""); setSubPassword(""); setSubHostId(NONE); setCustomHostUrl("");
     setNewMac(""); setNewDeviceKey("");
     setNewAppActive("true"); setNewAppExpiryOption("never"); setNewAppExpiryDate("");
     setIsFullAddOpen(true);
@@ -303,7 +321,7 @@ function CustomerDetailsPage() {
   const handleOpenAddSub = (mac: string) => {
     setTargetMac(mac);
     setEditingSubIdx(null);
-    setSubUsername(""); setSubPassword(""); setSubHostId(NONE);
+    setSubUsername(""); setSubPassword(""); setSubHostId(NONE); setCustomHostUrl("");
     setIsSubModalOpen(true);
   };
 
@@ -312,7 +330,20 @@ function CustomerDetailsPage() {
     setEditingSubIdx(idx);
     setSubUsername(s.username);
     setSubPassword(s.password || "");
-    setSubHostId(typeof s.host === 'string' ? s.host : (s.host?._id || NONE));
+    
+    const rawHost = typeof s.host === 'string' ? s.host : (s.host?._id || NONE);
+    const matchedHost = hosts.find(h => h._id === rawHost || h.url === rawHost || (typeof s.host === 'object' && (s.host?._id === h._id || s.host?.url === h.url)));
+
+    if (matchedHost) {
+      setSubHostId(matchedHost._id);
+      setCustomHostUrl("");
+    } else if (rawHost && rawHost !== NONE) {
+      setSubHostId(CUSTOM_OPTION);
+      setCustomHostUrl(typeof s.host === 'string' ? s.host : (s.host?.url || rawHost));
+    } else {
+      setSubHostId(NONE);
+      setCustomHostUrl("");
+    }
     setIsSubModalOpen(true);
   };
 
@@ -436,7 +467,11 @@ function CustomerDetailsPage() {
                     {dev.subs.map((s) => (
                       <tr key={s.originalIndex} className="border-b border-border/30 last:border-0 hover:bg-muted/10 transition-colors">
                         <td className="px-4 py-3">
-                          <span className="rounded-full bg-primary/15 px-2 py-1 font-bold text-primary inline-block text-xs">
+                          <span className={`rounded-full px-2 py-1 font-bold inline-block text-xs ${
+                            typeof s.host === 'string' && s.host !== NONE && !hosts.some(h => h._id === s.host || h.url === s.host)
+                              ? 'bg-amber-500/15 border border-amber-500/30 text-amber-400'
+                              : 'bg-primary/15 text-primary'
+                          }`}>
                             {hostName(s.host ? (typeof s.host === 'string' ? s.host : s.host._id) : null)}
                           </span>
                         </td>
@@ -491,13 +526,36 @@ function CustomerDetailsPage() {
             <div className="grid gap-4 sm:grid-cols-2 mt-4">
               <div className="space-y-1">
                 <Label>السيرفر (Host)</Label>
-                <Select value={subHostId} onValueChange={setSubHostId}>
+                <Select 
+                  value={subHostId} 
+                  onValueChange={(val) => {
+                    setSubHostId(val);
+                    if (val !== CUSTOM_OPTION) {
+                      setCustomHostUrl("");
+                    }
+                  }}
+                >
                   <SelectTrigger><SelectValue placeholder="اختر السيرفر" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value={NONE}>اختر...</SelectItem>
                     {hosts.map(p => <SelectItem key={p._id} value={p._id}>{p.name}</SelectItem>)}
+                    <SelectItem value={CUSTOM_OPTION}>
+                      {customHostUrl ? `آخر: ${customHostUrl}` : "خيار آخر (كتابة دومين مخصص)..."}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
+                {subHostId === CUSTOM_OPTION && (
+                  <div className="space-y-1 mt-2">
+                    <Label className="text-xs text-muted-foreground">رابط الدومين / السيرفر</Label>
+                    <Input 
+                      dir="ltr" 
+                      placeholder="http://domain.com:port" 
+                      value={customHostUrl} 
+                      onChange={e => setCustomHostUrl(e.target.value)} 
+                      className="font-mono text-left" 
+                    />
+                  </div>
+                )}
               </div>
               <div className="space-y-1">
                 <Label>اليوزرنيم</Label>
@@ -625,13 +683,36 @@ function CustomerDetailsPage() {
             <div className="space-y-4 mt-4">
               <div className="space-y-1">
                 <Label>السيرفر (Host)</Label>
-                <Select value={subHostId} onValueChange={setSubHostId}>
+                <Select 
+                  value={subHostId} 
+                  onValueChange={(val) => {
+                    setSubHostId(val);
+                    if (val !== CUSTOM_OPTION) {
+                      setCustomHostUrl("");
+                    }
+                  }}
+                >
                   <SelectTrigger><SelectValue placeholder="اختر السيرفر" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value={NONE}>اختر...</SelectItem>
                     {hosts.map(p => <SelectItem key={p._id} value={p._id}>{p.name}</SelectItem>)}
+                    <SelectItem value={CUSTOM_OPTION}>
+                      {customHostUrl ? `آخر: ${customHostUrl}` : "خيار آخر (كتابة دومين مخصص)..."}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
+                {subHostId === CUSTOM_OPTION && (
+                  <div className="space-y-1 mt-2">
+                    <Label className="text-xs text-muted-foreground">رابط الدومين / السيرفر</Label>
+                    <Input 
+                      dir="ltr" 
+                      placeholder="http://domain.com:port" 
+                      value={customHostUrl} 
+                      onChange={e => setCustomHostUrl(e.target.value)} 
+                      className="font-mono text-left" 
+                    />
+                  </div>
+                )}
               </div>
               <div className="space-y-1">
                 <Label>اليوزرنيم</Label>
