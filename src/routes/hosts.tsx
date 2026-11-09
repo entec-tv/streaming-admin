@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { z } from "zod";
 import { AppShell } from "@/components/layout/AppShell";
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { useData } from "@/store/data-store";
 import type { Host } from "@/services/types";
+import { useAuth } from "@/store/auth";
 
 export const Route = createFileRoute("/hosts")({
   head: () => ({
@@ -48,6 +49,8 @@ const empty = { name: "", url: "" };
 
 function HostsPage() {
   const { hosts, addHost, updateHost, deleteHost, customers } = useData();
+  const { role } = useAuth();
+  const canManage = role === "owner" || role === "admin";
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Host | null>(null);
   const [form, setForm] = useState(empty);
@@ -100,10 +103,8 @@ function HostsPage() {
     }
     if (editing) {
       updateHost(editing._id, parsed.data);
-      toast.success("تم تعديل السيرفر");
     } else {
       addHost(parsed.data);
-      toast.success("تمت إضافة السيرفر");
     }
     setOpen(false);
   };
@@ -112,11 +113,11 @@ function HostsPage() {
     <AppShell
       title="إدارة السيرفرات (Hosts)"
       description="مصادر البث المتاحة للأجهزة"
-      actions={
+      actions={canManage ? (
         <Button className="font-bold" onClick={openCreate}>
           <Plus /> إضافة سيرفر
         </Button>
-      }
+      ) : undefined}
     >
       <Card className="surface-card border-border/70 p-0">
         <div className="border-b border-border/70 px-5 py-4">
@@ -147,7 +148,7 @@ function HostsPage() {
                   </td>
                   <td className="px-5 py-3 text-muted-foreground">{p.createdAt}</td>
                   <td className="px-5 py-3">
-                    <div className="flex items-center gap-1">
+                    {canManage && <div className="flex items-center gap-1">
                       <Button variant="ghost" size="icon" title="تعديل" onClick={() => openEdit(p)}>
                         <Pencil className="size-4" />
                       </Button>
@@ -157,12 +158,11 @@ function HostsPage() {
                         title="حذف"
                         onClick={() => {
                           deleteHost(p._id);
-                          toast.success("تم حذف السيرفر");
                         }}
                       >
                         <Trash2 className="size-4 text-destructive" />
                       </Button>
-                    </div>
+                    </div>}
                   </td>
                 </tr>
               ))}
@@ -201,7 +201,7 @@ function HostsPage() {
                     <td className="px-5 py-3 text-xs text-muted-foreground">{ext.customers.join(', ')}</td>
                     <td className="px-5 py-3 font-bold text-primary">{ext.count}</td>
                     <td className="px-5 py-3 text-center">
-                      <Button 
+                      {canManage && <Button 
                         size="sm" 
                         variant="secondary" 
                         className="text-xs bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/20"
@@ -213,7 +213,7 @@ function HostsPage() {
                         }}
                       >
                         <Plus className="size-3.5 mr-1" /> إضافة إلى السيرفرات المعتمدة
-                      </Button>
+                      </Button>}
                     </td>
                   </tr>
                 ))}

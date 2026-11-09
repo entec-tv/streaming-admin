@@ -5,7 +5,7 @@ import axios from "axios";
  * غيّر VITE_API_URL في ملف البيئة عند ربط الـ API الحقيقي.
  */
 export const api = axios.create({
-  baseURL: "https://entecstreamingnestjs-production.up.railway.app/api",
+  baseURL: "https://streamingnest-production.up.railway.app/api",
   headers: { "Content-Type": "application/json" },
   timeout: 15000,
 });
@@ -24,6 +24,7 @@ api.interceptors.response.use(
     if (error?.response?.status === 401 && typeof window !== "undefined") {
       window.localStorage.removeItem("entec_token");
       window.localStorage.removeItem("entec_admin");
+      window.localStorage.removeItem("entec_role");
       window.dispatchEvent(new Event("auth:logout"));
     }
     return Promise.reject(error);
@@ -45,4 +46,10 @@ export const endpoints = {
   plan: (id: string) => `/admin/plans/${id}`,
   admins: "/auth/admins",
   admin: (id: string) => `/auth/admins/${id}`,
+  auditLogs: "/audit-logs",
+  billing: "/billing",
+  billingSummary: "/billing/summary",
+  billingStatus: (id: string) => `/billing/${id}/status`,
+  appUpdates: "/app-updates",
+  appUpdate: (platform: string) => `/app-updates/${platform}`,
 };

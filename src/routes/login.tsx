@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 import { Lock, Mail, Satellite } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,7 +49,7 @@ function LoginPage() {
       .then((response) => {
         setLoading(false);
         const { access_token, admin } = response.data;
-        login(admin.username, access_token);
+        login(admin.username, access_token, admin.role || "admin");
         toast.success("تم تسجيل الدخول بنجاح");
         navigate({ to: "/" });
       })

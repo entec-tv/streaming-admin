@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useMemo, useEffect } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 import { Pencil, Plus, ShieldBan, ShieldCheck, Trash2, MonitorSmartphone, Tv, ArrowRight, Save, User, Settings, RefreshCw } from "lucide-react";
 import { z } from "zod";
 import { AppShell } from "@/components/layout/AppShell";
@@ -55,7 +55,8 @@ function CustomerDetailsPage() {
     updateCustomer,
     hostName
   } = useData();
-  const { isAuthed } = useAuth();
+  const { role } = useAuth();
+  const canManage = role === "owner" || role === "admin";
 
   const handleRefreshApp = async (macAddress: string) => {
     try {
@@ -140,7 +141,6 @@ function CustomerDetailsPage() {
       return;
     }
     updateCustomer(customer._id, { name: parsed.data.name });
-    toast.success("تم تحديث اسم العميل");
   };
 
   const getParsedExpiry = () => {
@@ -374,9 +374,9 @@ function CustomerDetailsPage() {
       description={`إدارة اشتراكات وأجهزة العميل: ${customer.name}`}
       actions={
         <div className="flex items-center gap-2">
-          <Button onClick={handleOpenFullAdd} className="bg-primary hover:bg-primary/90 text-black font-bold">
+          {canManage && <Button onClick={handleOpenFullAdd} className="bg-primary hover:bg-primary/90 text-black font-bold">
             <Plus className="mr-2" /> إضافة جهاز جديد
-          </Button>
+          </Button>}
           <Button variant="outline" onClick={() => navigate({ to: '/customers' })}>
             <ArrowRight className="mr-2" /> العودة
           </Button>
@@ -392,11 +392,11 @@ function CustomerDetailsPage() {
           <div className="flex items-end gap-4">
             <div className="space-y-2 flex-1">
               <Label>اسم العميل</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={100} />
+              <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={100} disabled={!canManage} />
             </div>
-            <Button onClick={handleUpdateName}>
+            {canManage && <Button onClick={handleUpdateName}>
               <Save className="mr-2 size-4" /> حفظ التغييرات
-            </Button>
+            </Button>}
           </div>
         </Card>
 
@@ -439,7 +439,7 @@ function CustomerDetailsPage() {
                     </div>
                   </div>
                 </div>
-                <div className="flex gap-2">
+                {canManage && <div className="flex gap-2">
                   <Button variant="outline" size="sm" onClick={() => handleRefreshApp(dev.macAddress)}>
                     <RefreshCw className="size-4 mr-2" /> تحديث التطبيق
                   </Button>
@@ -449,7 +449,7 @@ function CustomerDetailsPage() {
                   <Button size="sm" onClick={() => handleOpenAddSub(dev.macAddress)}>
                     <Plus className="size-4 mr-2" /> إضافة اشتراك
                   </Button>
-                </div>
+                </div>}
               </div>
 
               {/* Subscriptions Table */}
@@ -481,6 +481,7 @@ function CustomerDetailsPage() {
                         </td>
                         <td className="px-4 py-3 text-center">
                           <div className="flex justify-center items-center gap-1">
+                            {canManage && <>
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10" onClick={() => handleOpenEditSub(s.originalIndex)}>
                               <Pencil className="size-4" />
                             </Button>
@@ -490,6 +491,7 @@ function CustomerDetailsPage() {
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleRemoveSubscription(s.originalIndex)}>
                               <Trash2 className="size-4" />
                             </Button>
+                            </>}
                           </div>
                         </td>
                       </tr>

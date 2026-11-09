@@ -1,17 +1,27 @@
 import { Link } from "@tanstack/react-router";
-import { LayoutDashboard, MonitorSmartphone, Server, LogOut, Satellite, Package, Users } from "lucide-react";
+import { LayoutDashboard, MonitorSmartphone, Server, LogOut, Satellite, Package, Users, Download, Smartphone, ClipboardList, CircleDollarSign } from "lucide-react";
 import { useAuth } from "@/store/auth";
 
 const nav = [
   { to: "/", label: "الرئيسية", icon: LayoutDashboard, exact: true },
   { to: "/customers", label: "إدارة العملاء", icon: MonitorSmartphone, exact: false },
+  { to: "/devices", label: "إدارة الأجهزة", icon: Smartphone, exact: false },
+  { to: "/billing", label: "الفوترة والدفعات", icon: CircleDollarSign, exact: false },
   { to: "/hosts", label: "السيرفرات", icon: Server, exact: false },
   { to: "/plans", label: "باقات التطبيق", icon: Package, exact: false },
+  { to: "/app-updates", label: "تحديث التطبيق", icon: Download, exact: false },
+  { to: "/audit-logs", label: "سجل التدقيق", icon: ClipboardList, exact: false },
   { to: "/admin-users", label: "مستخدمين اللوحة", icon: Users, exact: false },
 ] as const;
 
 export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
-  const { logout, email } = useAuth();
+  const { logout, email, role } = useAuth();
+  const visibleNav = nav.filter(({ to }) => {
+    if (to === "/billing") return role === "owner" || role === "admin";
+    if (to === "/admin-users") return role === "owner";
+    if (to === "/audit-logs") return role === "owner" || role === "admin";
+    return true;
+  });
 
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
@@ -26,7 +36,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       <nav className="flex-1 space-y-1 p-3">
-        {nav.map(({ to, label, icon: Icon, exact }) => (
+        {visibleNav.map(({ to, label, icon: Icon, exact }) => (
           <Link
             key={to}
             to={to}

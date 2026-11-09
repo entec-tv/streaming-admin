@@ -11,7 +11,11 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminUsersRouteImport } from './routes/admin-users'
+import { Route as AppUpdatesRouteImport } from './routes/app-updates'
+import { Route as AuditLogsRouteImport } from './routes/audit-logs'
+import { Route as BillingRouteImport } from './routes/billing'
 import { Route as CustomersRouteImport } from './routes/customers'
+import { Route as DevicesRouteImport } from './routes/devices'
 import { Route as HostsRouteImport } from './routes/hosts'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PlansRouteImport } from './routes/plans'
@@ -30,9 +34,29 @@ const AdminUsersRoute = AdminUsersRouteImport.update({
   path: '/admin-users',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppUpdatesRoute = AppUpdatesRouteImport.update({
+  id: '/app-updates',
+  path: '/app-updates',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuditLogsRoute = AuditLogsRouteImport.update({
+  id: '/audit-logs',
+  path: '/audit-logs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BillingRoute = BillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CustomersRoute = CustomersRouteImport.update({
   id: '/customers',
   path: '/customers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevicesRoute = DevicesRouteImport.update({
+  id: '/devices',
+  path: '/devices',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HostsRoute = HostsRouteImport.update({
@@ -74,7 +98,11 @@ const PortalStatusRoute = PortalStatusRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin-users': typeof AdminUsersRoute
+  '/app-updates': typeof AppUpdatesRoute
+  '/audit-logs': typeof AuditLogsRoute
+  '/billing': typeof BillingRoute
   '/customers': typeof CustomersRoute
+  '/devices': typeof DevicesRoute
   '/hosts': typeof HostsRoute
   '/login': typeof LoginRoute
   '/plans': typeof PlansRoute
@@ -86,7 +114,11 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin-users': typeof AdminUsersRoute
+  '/app-updates': typeof AppUpdatesRoute
+  '/audit-logs': typeof AuditLogsRoute
+  '/billing': typeof BillingRoute
   '/customers': typeof CustomersRoute
+  '/devices': typeof DevicesRoute
   '/hosts': typeof HostsRoute
   '/login': typeof LoginRoute
   '/plans': typeof PlansRoute
@@ -99,7 +131,11 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin-users': typeof AdminUsersRoute
+  '/app-updates': typeof AppUpdatesRoute
+  '/audit-logs': typeof AuditLogsRoute
+  '/billing': typeof BillingRoute
   '/customers': typeof CustomersRoute
+  '/devices': typeof DevicesRoute
   '/hosts': typeof HostsRoute
   '/login': typeof LoginRoute
   '/plans': typeof PlansRoute
@@ -113,7 +149,11 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin-users'
+    | '/app-updates'
+    | '/audit-logs'
+    | '/billing'
     | '/customers'
+    | '/devices'
     | '/hosts'
     | '/login'
     | '/plans'
@@ -125,7 +165,11 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin-users'
+    | '/app-updates'
+    | '/audit-logs'
+    | '/billing'
     | '/customers'
+    | '/devices'
     | '/hosts'
     | '/login'
     | '/plans'
@@ -137,7 +181,11 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin-users'
+    | '/app-updates'
+    | '/audit-logs'
+    | '/billing'
     | '/customers'
+    | '/devices'
     | '/hosts'
     | '/login'
     | '/plans'
@@ -150,7 +198,11 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminUsersRoute: typeof AdminUsersRoute
+  AppUpdatesRoute: typeof AppUpdatesRoute
+  AuditLogsRoute: typeof AuditLogsRoute
+  BillingRoute: typeof BillingRoute
   CustomersRoute: typeof CustomersRoute
+  DevicesRoute: typeof DevicesRoute
   HostsRoute: typeof HostsRoute
   LoginRoute: typeof LoginRoute
   PlansRoute: typeof PlansRoute
@@ -176,11 +228,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminUsersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app-updates': {
+      id: '/app-updates'
+      path: '/app-updates'
+      fullPath: '/app-updates'
+      preLoaderRoute: typeof AppUpdatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/audit-logs': {
+      id: '/audit-logs'
+      path: '/audit-logs'
+      fullPath: '/audit-logs'
+      preLoaderRoute: typeof AuditLogsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/billing': {
+      id: '/billing'
+      path: '/billing'
+      fullPath: '/billing'
+      preLoaderRoute: typeof BillingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/customers': {
       id: '/customers'
       path: '/customers'
       fullPath: '/customers'
       preLoaderRoute: typeof CustomersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devices': {
+      id: '/devices'
+      path: '/devices'
+      fullPath: '/devices'
+      preLoaderRoute: typeof DevicesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/hosts': {
@@ -238,7 +318,11 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminUsersRoute: AdminUsersRoute,
+  AppUpdatesRoute: AppUpdatesRoute,
+  AuditLogsRoute: AuditLogsRoute,
+  BillingRoute: BillingRoute,
   CustomersRoute: CustomersRoute,
+  DevicesRoute: DevicesRoute,
   HostsRoute: HostsRoute,
   LoginRoute: LoginRoute,
   PlansRoute: PlansRoute,

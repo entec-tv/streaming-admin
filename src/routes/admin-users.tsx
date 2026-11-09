@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 import { Pencil, Plus, Trash2, Users } from "lucide-react";
 import { z } from "zod";
 import { AppShell } from "@/components/layout/AppShell";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -18,7 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useData } from "@/store/data-store";
-import type { AdminUser } from "@/services/types";
+import type { AdminRole, AdminUser } from "@/services/types";
 import { useAuth } from "@/store/auth";
 
 export const Route = createFileRoute("/admin-users")({
@@ -41,6 +42,7 @@ export const Route = createFileRoute("/admin-users")({
 const schema = z.object({
   username: z.string().trim().min(3, { message: "اسم المستخدم يجب أن يكون 3 أحرف على الأقل" }).max(50),
   password: z.string().optional(),
+  role: z.enum(["owner", "admin", "viewer"]),
   isCreating: z.boolean().optional(),
 }).refine(data => {
   if (data.isCreating && (!data.password || data.password.length < 6)) {
@@ -55,24 +57,27 @@ const schema = z.object({
   path: ["password"]
 });
 
-const empty = { username: "", password: "", isCreating: true };
+type AdminForm = { username: string; password: string; role: AdminRole; isCreating: boolean };
+const empty: AdminForm = { username: "", password: "", role: "admin", isCreating: true };
+
+const roleLabels = { owner: "مالك", admin: "مدير", viewer: "قراءة فقط" } as const;
 
 function AdminUsersPage() {
   const { admins, addAdmin, updateAdmin, deleteAdmin } = useData();
-  const { email } = useAuth(); // email holds the current admin username
+  const { email, role: currentRole } = useAuth(); // email holds the current admin username
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<AdminUser | null>(null);
   const [form, setForm] = useState(empty);
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ username: "", password: "", isCreating: true });
+    setForm({ username: "", password: "", role: "admin", isCreating: true });
     setOpen(true);
   };
 
   const openEdit = (a: AdminUser) => {
     setEditing(a);
-    setForm({ username: a.username, password: "", isCreating: false });
+    setForm({ username: a.username, password: "", role: a.role, isCreating: false });
     setOpen(true);
   };
 
@@ -87,6 +92,7 @@ function AdminUsersPage() {
       const updateData: any = {};
       if (parsed.data.username !== editing.username) updateData.username = parsed.data.username;
       if (parsed.data.password) updateData.password = parsed.data.password;
+      if (parsed.data.role !== editing.role) updateData.role = parsed.data.role;
       
       updateAdmin(editing._id, updateData);
     } else {
@@ -94,10 +100,20 @@ function AdminUsersPage() {
         toast.error("كلمة المرور مطلوبة");
         return;
       }
-      addAdmin({ username: parsed.data.username, password: parsed.data.password });
+      addAdmin({ username: parsed.data.username, password: parsed.data.password, role: parsed.data.role });
     }
     setOpen(false);
   };
+
+  if (currentRole !== "owner") {
+    return (
+      <AppShell title="مستخدمين اللوحة" description="هذه الصفحة متاحة لمالك النظام فقط">
+        <Card className="surface-card border-border/70 p-8 text-center text-muted-foreground">
+          لا تملك صلاحية إدارة حسابات لوحة التحكم.
+        </Card>
+      </AppShell>
+    );
+  }
 
   const handleDelete = (a: AdminUser) => {
     if (a.username === email) {
@@ -129,6 +145,7 @@ function AdminUsersPage() {
             <thead className="text-xs text-muted-foreground">
               <tr className="border-b border-border/70">
                 <th className="px-5 py-3 font-bold">اسم المستخدم</th>
+                <th className="px-5 py-3 font-bold">الصلاحية</th>
                 <th className="px-5 py-3 font-bold">تاريخ الإضافة</th>
                 <th className="px-5 py-3 font-bold">تاريخ التحديث</th>
                 <th className="px-5 py-3 font-bold">إجراءات</th>
@@ -143,6 +160,7 @@ function AdminUsersPage() {
                       <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold text-primary">أنت</span>
                     )}
                   </td>
+                  <td className="px-5 py-3">{roleLabels[a.role] || roleLabels.admin}</td>
                   <td className="px-5 py-3 text-muted-foreground">
                     {a.createdAt ? new Date(a.createdAt).toLocaleDateString('ar-EG') : '-'}
                   </td>
@@ -169,7 +187,7 @@ function AdminUsersPage() {
               ))}
               {admins.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-5 py-10 text-center text-muted-foreground">
+                  <td colSpan={5} className="px-5 py-10 text-center text-muted-foreground">
                     لا يوجد مدراء بعد
                   </td>
                 </tr>
@@ -197,6 +215,22 @@ function AdminUsersPage() {
                 onChange={(e) => setForm({ ...form, username: e.target.value })}
                 placeholder="admin"
               />
+            </div>
+            <div className="space-y-2">
+              <Label>الصلاحية</Label>
+              <Select
+                value={form.role}
+                onValueChange={(value) => setForm({ ...form, role: value as AdminRole })}
+                disabled={Boolean(editing && editing.username === email)}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="owner">مالك النظام</SelectItem>
+                  <SelectItem value="admin">مدير</SelectItem>
+                  <SelectItem value="viewer">قراءة فقط</SelectItem>
+                </SelectContent>
+              </Select>
+              {editing?.username === email && <p className="text-xs text-muted-foreground">لا يمكن تغيير صلاحية حسابك من جلسته الحالية.</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">كلمة المرور {editing && <span className="text-muted-foreground text-xs font-normal">(اتركه فارغاً إذا لم ترغب بتغييره)</span>}</Label>

@@ -10,16 +10,17 @@ import type {
   Device,
   AdminUser,
   CreateAdminUserInput,
+  RegisteredDeviceStatus,
 } from "@/services/types";
 import { api, endpoints } from "@/services/api";
 import { useAuth } from "./auth";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 
 interface DataContextValue {
   customers: Customer[];
   hosts: Host[];
-  addCustomer: (input: CreateCustomerInput) => void;
-  updateCustomer: (id: string, input: Partial<CreateCustomerInput>) => void;
+  addCustomer: (input: CreateCustomerInput, options?: { notify?: boolean }) => Promise<boolean>;
+  updateCustomer: (id: string, input: Partial<CreateCustomerInput>, options?: { notify?: boolean }) => Promise<boolean>;
   updateCustomerStatus: (id: string, status: CustomerStatus) => void;
   deleteCustomer: (id: string) => void;
 
@@ -29,6 +30,8 @@ interface DataContextValue {
   
   devices: Device[];
   fetchDevices: () => Promise<void>;
+  revokeDevice: (macAddress: string, deviceKey?: string) => Promise<boolean>;
+  restoreDevice: (macAddress: string) => Promise<boolean>;
   
   hostName: (id: string | null) => string;
   customersCount: (hostId: string) => number;
@@ -61,6 +64,7 @@ const mapCustomer = (c: any): Customer => ({
   status: c.status,
   subscriptions: (c.subscriptions || []).map((s: any) => ({
     _id: s._id,
+    playlistName: s.playlistName,
     username: s.username,
     password: s.password,
     status: s.status,
@@ -70,6 +74,7 @@ const mapCustomer = (c: any): Customer => ({
     lastActive: s.lastActive || "",
     appActive: s.appActive,
     appExpiry: s.appExpiry,
+    isLocked: s.isLocked,
   })),
   createdAt: c.createdAt ? c.createdAt.slice(0, 10) : "",
   updatedAt: c.updatedAt ? c.updatedAt.slice(0, 10) : "",
@@ -78,10 +83,16 @@ const mapCustomer = (c: any): Customer => ({
 const mapDevice = (d: any): Device => ({
   _id: d._id,
   macAddress: d.macAddress,
-  deviceKey: d.deviceKey,
+  deviceKey: d.deviceKey || "",
   customPlaylists: d.customPlaylists || [],
-  lastActive: d.lastActive ? new Date(d.lastActive).toLocaleString('ar-EG') : "غير معروف",
-  createdAt: d.createdAt ? new Date(d.createdAt).toLocaleDateString('ar-EG') : "",
+  playlistCount: Number(d.playlistCount ?? d.customPlaylists?.length ?? 0),
+  status: (d.status || "active") as RegisteredDeviceStatus,
+  revokedAt: d.revokedAt || null,
+  revokeReason: d.revokeReason || null,
+  lastActive: d.lastActive || "",
+  trialStartsAt: d.trialStartsAt || "",
+  trialEndsAt: d.trialEndsAt || "",
+  createdAt: d.createdAt || "",
 });
 
 export function DataProvider({ children }: { children: ReactNode }) {
@@ -90,13 +101,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [plans, setPlans] = useState<AppPlan[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
   const [admins, setAdmins] = useState<AdminUser[]>([]);
-  const { isAuthed } = useAuth();
+  const { isAuthed, ready, role } = useAuth();
 
   useEffect(() => {
-    if (!isAuthed) return;
+    if (!isAuthed || !ready || !role) return;
 
     fetchDevices();
-    fetchAdmins();
+    if (role === "owner") fetchAdmins();
+    else setAdmins([]);
 
     api.get(endpoints.hosts)
       .then((res) => setHosts(res.data.map(mapHost)))
@@ -125,31 +137,33 @@ export function DataProvider({ children }: { children: ReactNode }) {
           toast.error("خطأ في تحميل الباقات من الخادم");
         }
       });
-  }, [isAuthed]);
+  }, [isAuthed, ready, role]);
 
-  const addCustomer = useCallback((input: CreateCustomerInput) => {
-    api.post(endpoints.customers, {
-      name: input.name,
-      subscriptions: input.subscriptions || [],
-    })
-      .then((res) => {
-        setCustomers((prev) => [mapCustomer(res.data), ...prev]);
-        toast.success("تم إضافة العميل بنجاح");
-      })
-      .catch((err) => {
-        toast.error(err.response?.data?.message || "خطأ في إضافة العميل");
+  const addCustomer = useCallback(async (input: CreateCustomerInput, options: { notify?: boolean } = {}) => {
+    try {
+      const res = await api.post(endpoints.customers, {
+        name: input.name,
+        subscriptions: input.subscriptions || [],
       });
+      setCustomers((prev) => [mapCustomer(res.data), ...prev]);
+      if (options.notify !== false) toast.success("تم إضافة العميل بنجاح");
+      return true;
+    } catch (err: any) {
+      if (options.notify !== false) toast.error(err.response?.data?.message || "خطأ في إضافة العميل");
+      return false;
+    }
   }, []);
 
-  const updateCustomer = useCallback((id: string, input: Partial<CreateCustomerInput>) => {
-    api.put(endpoints.customer(id), input)
-      .then((res) => {
-        setCustomers((prev) => prev.map((c) => (c._id === id ? mapCustomer(res.data) : c)));
-        toast.success("تم تحديث بيانات العميل بنجاح");
-      })
-      .catch((err) => {
-        toast.error(err.response?.data?.message || "خطأ في تحديث العميل");
-      });
+  const updateCustomer = useCallback(async (id: string, input: Partial<CreateCustomerInput>, options: { notify?: boolean } = {}) => {
+    try {
+      const res = await api.put(endpoints.customer(id), input);
+      setCustomers((prev) => prev.map((c) => (c._id === id ? mapCustomer(res.data) : c)));
+      if (options.notify !== false) toast.success("تم تحديث بيانات العميل بنجاح");
+      return true;
+    } catch (err: any) {
+      if (options.notify !== false) toast.error(err.response?.data?.message || "خطأ في تحديث العميل");
+      return false;
+    }
   }, []);
 
   const updateCustomerStatus = useCallback((id: string, status: CustomerStatus) => {
@@ -251,11 +265,53 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const res = await api.get('/devices');
       setDevices(res.data.map(mapDevice));
     } catch (err) {
-      console.error(err);
+      if ((err as any)?.response?.status !== 401) {
+        toast.error((err as any)?.response?.data?.message || "تعذر تحميل الأجهزة المسجلة");
+      }
+    }
+  }, []);
+
+  const revokeDevice = useCallback(async (macAddress: string, deviceKey?: string) => {
+    try {
+      await api.delete(`/devices/${encodeURIComponent(macAddress)}`, { data: { deviceKey } });
+      const normalizedMac = macAddress.toUpperCase().replace(/[^A-F0-9]/g, "");
+      setCustomers((prev) => prev.map((customer) => ({
+        ...customer,
+        subscriptions: customer.subscriptions.filter(
+          (subscription) => subscription.macAddress.toUpperCase().replace(/[^A-F0-9]/g, "") !== normalizedMac,
+        ),
+      })));
+      setDevices((prev) => prev.map((device) =>
+        device.macAddress.toUpperCase().replace(/[^A-F0-9]/g, "") === normalizedMac
+          ? { ...device, status: "revoked", revokedAt: new Date().toISOString() }
+          : device,
+      ));
+      await fetchDevices();
+      return true;
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "تعذر إيقاف الجهاز");
+      return false;
+    }
+  }, [fetchDevices]);
+
+  const restoreDevice = useCallback(async (macAddress: string) => {
+    try {
+      const res = await api.put(`/devices/${encodeURIComponent(macAddress)}/restore`);
+      const normalizedMac = macAddress.toUpperCase().replace(/[^A-F0-9]/g, "");
+      setDevices((prev) => prev.map((device) =>
+        device.macAddress.toUpperCase().replace(/[^A-F0-9]/g, "") === normalizedMac
+          ? mapDevice(res.data.device)
+          : device,
+      ));
+      return true;
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "تعذر إعادة تفعيل الجهاز");
+      return false;
     }
   }, []);
 
   const fetchAdmins = useCallback(async () => {
+    if (role !== "owner") return;
     try {
       const res = await api.get(endpoints.admins);
       setAdmins(res.data);
@@ -264,7 +320,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         toast.error("خطأ في تحميل مدراء النظام");
       }
     }
-  }, []);
+  }, [role]);
 
   const addAdmin = useCallback((input: CreateAdminUserInput) => {
     api.post(endpoints.admins, input)
@@ -307,6 +363,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       devices,
       admins,
       fetchDevices,
+      revokeDevice,
+      restoreDevice,
       fetchAdmins,
       addCustomer,
       updateCustomer,
@@ -320,6 +378,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
       deletePlan,
       addAdmin,
       updateAdmin,
+      deleteAdmin,
+      customersCount: (hostId: string) =>
+        customers.filter((c) =>
+          c.subscriptions.some(
+            (s) => (typeof s.host === "string" ? s.host : s.host?._id) === hostId
+          )
+        ).length,
       hostName: (id) => {
         if (!id) return "غير مرتبطة";
         if (typeof id === 'object') {
@@ -338,6 +403,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
       customers,
       hosts,
       plans,
+      devices,
+      admins,
+      fetchDevices,
+      revokeDevice,
+      restoreDevice,
+      fetchAdmins,
       addCustomer,
       updateCustomer,
       updateCustomerStatus,
@@ -348,7 +419,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
       addPlan,
       updatePlan,
       deletePlan,
-      admins,
       addAdmin,
       updateAdmin,
       deleteAdmin,

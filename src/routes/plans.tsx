@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 import { Pencil, Plus, Trash2, Check, X } from "lucide-react";
 import { z } from "zod";
 import { AppShell } from "@/components/layout/AppShell";
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { useData } from "@/store/data-store";
 import type { AppPlan } from "@/services/types";
+import { useAuth } from "@/store/auth";
 
 export const Route = createFileRoute("/plans")({
   head: () => ({
@@ -50,6 +51,8 @@ const empty = { name: "", price: "", duration: "", features: [""], isPopular: fa
 
 function PlansPage() {
   const { plans, addPlan, updatePlan, deletePlan } = useData();
+  const { role } = useAuth();
+  const canManage = role === "owner" || role === "admin";
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<AppPlan | null>(null);
   const [form, setForm] = useState(empty);
@@ -84,10 +87,8 @@ function PlansPage() {
     }
     if (editing) {
       updatePlan(editing._id, parsed.data);
-      toast.success("تم تعديل الباقة");
     } else {
       addPlan(parsed.data);
-      toast.success("تمت إضافة الباقة");
     }
     setOpen(false);
   };
@@ -111,11 +112,11 @@ function PlansPage() {
     <AppShell
       title="باقات التطبيق"
       description="إدارة باقات تنشيط التطبيق وأسعارها المعروضة للعملاء"
-      actions={
+      actions={canManage ? (
         <Button className="font-bold" onClick={openCreate}>
           <Plus /> إضافة باقة
         </Button>
-      }
+      ) : undefined}
     >
       <Card className="surface-card border-border/70 p-0">
         <div className="border-b border-border/70 px-5 py-4">
@@ -152,7 +153,7 @@ function PlansPage() {
                     {p.isPopular ? <Check className="text-primary size-5" /> : null}
                   </td>
                   <td className="px-5 py-3">
-                    <div className="flex items-center gap-1">
+                    {canManage && <div className="flex items-center gap-1">
                       <Button variant="ghost" size="icon" title="تعديل" onClick={() => openEdit(p)}>
                         <Pencil className="size-4" />
                       </Button>
@@ -162,12 +163,11 @@ function PlansPage() {
                         title="حذف"
                         onClick={() => {
                           deletePlan(p._id);
-                          toast.success("تم حذف الباقة");
                         }}
                       >
                         <Trash2 className="size-4 text-destructive" />
                       </Button>
-                    </div>
+                    </div>}
                   </td>
                 </tr>
               ))}
