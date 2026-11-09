@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
-import { CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Search, XCircle } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Download, Search, XCircle } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { RequireAuth } from "@/components/RequireAuth";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { api, endpoints } from "@/services/api";
 import { useAuth } from "@/store/auth";
+import { datedCsvFilename, downloadCsv } from "@/lib/csv-export";
 
 export const Route = createFileRoute("/audit-logs")({
   head: () => ({ meta: [{ title: "سجل التدقيق — EN TEC Server" }] }),
@@ -67,6 +68,21 @@ function AuditLogsPage() {
     setSearch(searchInput.trim());
   };
 
+  const exportCurrentAuditPage = () => {
+    downloadCsv(datedCsvFilename(`audit-log-page-${page}`), [
+      "المستخدم", "الدور", "الطريقة", "المسار", "معرّف المورد", "النتيجة", "رمز الحالة", "التاريخ",
+    ], result.logs.map((entry) => [
+      entry.actorUsername,
+      roleNames[entry.actorRole] || entry.actorRole,
+      methodNames[entry.method] || entry.method,
+      entry.path,
+      entry.resourceId,
+      entry.success ? "نجاح" : "فشل",
+      entry.statusCode,
+      entry.createdAt,
+    ]));
+  };
+
   if (role !== "owner" && role !== "admin") {
     return (
       <AppShell title="سجل التدقيق" description="عرض العمليات الإدارية المسجلة">
@@ -89,6 +105,9 @@ function AuditLogsPage() {
             <Input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="بحث بالمستخدم أو المسار أو المعرّف" className="w-64" />
             <Button type="submit" variant="outline" aria-label="بحث"><Search className="size-4" /></Button>
           </form>
+          <Button variant="outline" size="sm" onClick={exportCurrentAuditPage} disabled={result.logs.length === 0 || loading}>
+            <Download className="ml-2 size-4" /> تصدير الصفحة الحالية
+          </Button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[850px] text-right text-sm">

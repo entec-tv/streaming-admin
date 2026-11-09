@@ -127,6 +127,25 @@ export interface AppUpdate {
   updatedAt?: string;
 }
 
+export interface AppUpdateHistoryEntry {
+  _id: string;
+  version: string;
+  downloadUrl: string;
+  sha256: string;
+  action: "published" | "restored" | "baseline";
+  actorUsername: string;
+  actorRole: "owner" | "admin" | "system";
+  restoredFromId?: string;
+  changedAt: string;
+}
+
+export interface AppUpdateHistoryResponse {
+  entries: AppUpdateHistoryEntry[];
+  total: number;
+  page: number;
+  pages: number;
+}
+
 export type CreateAppPlanInput = Omit<AppPlan, "_id">;
 
 export interface CustomPlaylist {

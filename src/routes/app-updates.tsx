@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Check, Download, Save } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Download, ExternalLink, History, RotateCcw, Save } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { RequireAuth } from "@/components/RequireAuth";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/lib/notifications";
 import { api, endpoints } from "@/services/api";
-import type { AppUpdate, AppUpdatePlatform } from "@/services/types";
+import type { AppUpdate, AppUpdateHistoryEntry, AppUpdateHistoryResponse, AppUpdatePlatform } from "@/services/types";
 import { useAuth } from "@/store/auth";
 
 export const Route = createFileRoute("/app-updates")({
@@ -37,21 +37,45 @@ function AppUpdatesPage() {
   const { role } = useAuth();
   const canManage = role === "owner" || role === "admin";
   const [forms, setForms] = useState(blankForms);
+  const [savedUpdates, setSavedUpdates] = useState<Record<AppUpdatePlatform, AppUpdate | null>>({ windows: null, android: null, ios: null, web: null });
+  const [activePlatform, setActivePlatform] = useState<AppUpdatePlatform>("windows");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<AppUpdatePlatform | null>(null);
+  const [history, setHistory] = useState<AppUpdateHistoryResponse | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyRefresh, setHistoryRefresh] = useState(0);
+  const [restoring, setRestoring] = useState<string | null>(null);
 
   useEffect(() => {
     api.get<{ updates: AppUpdate[] }>(endpoints.appUpdates)
       .then(({ data }) => {
         const next = blankForms();
+        const saved = { windows: null, android: null, ios: null, web: null } as Record<AppUpdatePlatform, AppUpdate | null>;
         for (const update of data.updates || []) {
           next[update.platform] = { version: update.version, downloadUrl: update.downloadUrl || "", sha256: update.sha256 || "" };
+          saved[update.platform] = update;
         }
         setForms(next);
+        setSavedUpdates(saved);
       })
       .catch(() => toast.error("تعذّر تحميل إعدادات التحديث"))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    setHistoryLoading(true);
+    api.get<AppUpdateHistoryResponse>(endpoints.appUpdateHistory(activePlatform), { params: { page: historyPage, limit: 10 } })
+      .then(({ data }) => { if (active) setHistory(data); })
+      .catch(() => {
+        if (!active) return;
+        setHistory({ entries: [], total: 0, page: historyPage, pages: 0 });
+        toast.error("تعذّر تحميل سجل إصدارات التطبيق");
+      })
+      .finally(() => { if (active) setHistoryLoading(false); });
+    return () => { active = false; };
+  }, [activePlatform, historyPage, historyRefresh]);
 
   const save = async (platform: AppUpdatePlatform) => {
     const form = forms[platform];
@@ -76,16 +100,48 @@ function AppUpdatesPage() {
 
     setSaving(platform);
     try {
-      await api.put(endpoints.appUpdate(platform), {
+      const { data } = await api.put(endpoints.appUpdate(platform), {
         version: form.version.trim(),
         downloadUrl: form.downloadUrl.trim(),
         sha256: form.sha256.trim().toLowerCase(),
       });
+      const saved = data.update as AppUpdate;
+      setSavedUpdates((current) => ({ ...current, [platform]: saved }));
+      setForms((current) => ({
+        ...current,
+        [platform]: { version: saved.version, downloadUrl: saved.downloadUrl || "", sha256: saved.sha256 || "" },
+      }));
+      setHistoryPage(1);
+      setHistoryRefresh((current) => current + 1);
       toast.success(`تم حفظ تحديث ${definition.title}`);
     } catch (error: any) {
       toast.error(error?.response?.data?.message || "تعذّر حفظ إعدادات التحديث");
     } finally {
       setSaving(null);
+    }
+  };
+
+  const restore = async (entry: AppUpdateHistoryEntry) => {
+    const saved = savedUpdates[activePlatform];
+    if (restoring || (saved && saved.version === entry.version && saved.downloadUrl === entry.downloadUrl && saved.sha256 === entry.sha256)) return;
+    const platformTitle = platforms.find((item) => item.id === activePlatform)?.title || activePlatform;
+    if (!window.confirm(`سيتم استبدال إعداد ${platformTitle} الحالي بالإصدار ${entry.version}. سيُسجل هذا كعملية استعادة جديدة. هل تريد المتابعة؟`)) return;
+    setRestoring(entry._id);
+    try {
+      const { data } = await api.post(endpoints.appUpdateHistoryRestore(activePlatform, entry._id));
+      const restored = data.update as AppUpdate;
+      setSavedUpdates((current) => ({ ...current, [activePlatform]: restored }));
+      setForms((current) => ({
+        ...current,
+        [activePlatform]: { version: restored.version, downloadUrl: restored.downloadUrl || "", sha256: restored.sha256 || "" },
+      }));
+      setHistoryPage(1);
+      setHistoryRefresh((current) => current + 1);
+      toast.success(`تمت استعادة إعداد الإصدار ${restored.version}`);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "تعذّرت استعادة إعداد الإصدار");
+    } finally {
+      setRestoring(null);
     }
   };
 
@@ -96,12 +152,13 @@ function AppUpdatesPage() {
   return (
     <AppShell title="تحديث التطبيق" description="إدارة الإصدارات وروابط التحديث لكل منصة">
       <div className="mx-auto max-w-3xl">
-        <Tabs defaultValue="windows" dir="rtl">
+        <Tabs value={activePlatform} onValueChange={(value) => { setActivePlatform(value as AppUpdatePlatform); setHistoryPage(1); }} dir="rtl">
           <TabsList className="mb-4 grid h-auto w-full grid-cols-2 sm:grid-cols-4">
             {platforms.map((platform) => <TabsTrigger key={platform.id} value={platform.id}>{platform.title}</TabsTrigger>)}
           </TabsList>
           {platforms.map((platform) => {
             const form = forms[platform.id];
+            const saved = savedUpdates[platform.id];
             return (
               <TabsContent key={platform.id} value={platform.id}>
                 <Card>
@@ -132,6 +189,60 @@ function AppUpdatesPage() {
                       {saving === platform.id ? <Save className="size-4 animate-pulse" /> : <Check className="size-4" />}
                       {saving === platform.id ? "جارٍ الحفظ…" : `حفظ إعداد ${platform.title}`}
                     </Button>}
+                  </CardContent>
+                </Card>
+                <Card className="mt-5">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><History className="size-5 text-primary" /> سجل إصدارات {platform.title}</CardTitle>
+                    <CardDescription>يسجل المستخدم والتوقيت والإعداد المحفوظ. تتضمن القائمة لقطة للإعداد السابق عند بدء السجل؛ لا تتوفر تغييرات أقدم من ذلك.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {historyLoading ? (
+                      <p className="py-6 text-center text-sm text-muted-foreground">جارٍ تحميل السجل…</p>
+                    ) : history?.entries.length ? (
+                      <div className="divide-y divide-border/70">
+                        {history.entries.map((entry) => {
+                          const isCurrent = saved?.version === entry.version && saved?.downloadUrl === entry.downloadUrl && saved?.sha256 === entry.sha256;
+                          return (
+                            <div key={entry._id} className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:justify-between">
+                              <div className="min-w-0 space-y-1.5">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-bold">الإصدار {entry.version}</span>
+                                  <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${entry.action === "restored" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                                    {entry.action === "restored" ? "استعادة" : entry.action === "baseline" ? "الإعداد السابق" : "نشر"}
+                                  </span>
+                                  {isCurrent && <span className="rounded-full bg-success/10 px-2 py-0.5 text-xs font-bold text-success">الإعداد الحالي</span>}
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  {new Date(entry.changedAt).toLocaleString("ar-EG")} · {entry.actorUsername}{entry.actorRole !== "system" ? ` (${entry.actorRole === "owner" ? "مالك" : "مدير"})` : ""}
+                                </p>
+                                {entry.downloadUrl && (
+                                  <a href={entry.downloadUrl} target="_blank" rel="noopener noreferrer" dir="ltr" className="inline-flex max-w-full items-center gap-1 truncate text-xs text-primary hover:underline">
+                                    {entry.downloadUrl}<ExternalLink className="size-3 shrink-0" />
+                                  </a>
+                                )}
+                                {entry.sha256 && <p className="break-all font-mono text-[11px] text-muted-foreground" dir="ltr">SHA-256: {entry.sha256}</p>}
+                              </div>
+                              {canManage && <Button variant="outline" size="sm" disabled={isCurrent || restoring !== null || historyLoading} onClick={() => void restore(entry)}>
+                                {restoring === entry._id ? <RotateCcw className="ml-2 size-4 animate-spin" /> : <RotateCcw className="ml-2 size-4" />}
+                                {restoring === entry._id ? "جارٍ الاستعادة…" : "استعادة"}
+                              </Button>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="py-6 text-center text-sm text-muted-foreground">لا توجد تغييرات مسجلة بعد. يبدأ السجل من أول حفظ جديد.</p>
+                    )}
+                    {history && history.pages > 1 && (
+                      <div className="mt-4 flex items-center justify-between border-t border-border/70 pt-3 text-sm text-muted-foreground">
+                        <span>صفحة {history.page} من {history.pages} · {history.total} تغيير</span>
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" disabled={historyPage <= 1 || historyLoading} onClick={() => setHistoryPage((page) => page - 1)}><ChevronRight className="ml-1 size-4" /> السابق</Button>
+                          <Button variant="outline" size="sm" disabled={historyPage >= history.pages || historyLoading} onClick={() => setHistoryPage((page) => page + 1)}>التالي <ChevronLeft className="mr-1 size-4" /></Button>
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </TabsContent>

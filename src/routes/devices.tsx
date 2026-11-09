@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { CalendarClock, MonitorSmartphone, RotateCcw, Search, ShieldBan, Trash2 } from "lucide-react";
+import { CalendarClock, Download, MonitorSmartphone, RotateCcw, Search, ShieldBan, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { RequireAuth } from "@/components/RequireAuth";
 import { StatCard } from "@/components/StatCard";
@@ -23,6 +23,8 @@ import { api } from "@/services/api";
 import type { Device } from "@/services/types";
 import { useData } from "@/store/data-store";
 import { useAuth } from "@/store/auth";
+import { PaginationControls } from "@/components/PaginationControls";
+import { datedCsvFilename, downloadCsv } from "@/lib/csv-export";
 
 export const Route = createFileRoute("/devices")({
   head: () => ({ meta: [{ title: "إدارة الأجهزة — EN TEC Server" }] }),
@@ -49,6 +51,8 @@ function DevicesPage() {
   const canManage = role === "owner" || role === "admin";
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [pendingAction, setPendingAction] = useState<DeviceAction>(null);
   const [saving, setSaving] = useState(false);
 
@@ -81,6 +85,35 @@ function DevicesPage() {
       })
       .sort((a, b) => new Date(b.lastActive || 0).getTime() - new Date(a.lastActive || 0).getTime());
   }, [customerNamesByMac, devices, query, statusFilter]);
+
+  const visibleDevices = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredDevices.slice(start, start + pageSize);
+  }, [filteredDevices, page, pageSize]);
+
+  useEffect(() => setPage(1), [query, statusFilter]);
+  useEffect(() => {
+    const pages = Math.max(1, Math.ceil(filteredDevices.length / pageSize));
+    setPage((current) => Math.min(current, pages));
+  }, [filteredDevices.length, pageSize]);
+
+  const exportFilteredDevices = () => {
+    downloadCsv(datedCsvFilename("devices"), [
+      "عنوان MAC", "العملاء المرتبطون", "الحالة", "آخر ظهور", "بداية التجربة", "انتهاء التجربة", "عدد قوائم التشغيل", "تاريخ التسجيل",
+    ], filteredDevices.map((device) => {
+      const owners = [...(customerNamesByMac.get(normalizeMac(device.macAddress)) || [])];
+      return [
+        device.macAddress,
+        owners.join(" | "),
+        device.status === "revoked" ? "مسحوبة الصلاحية" : "مفعّل",
+        device.lastActive,
+        device.trialStartsAt,
+        device.trialEndsAt,
+        device.playlistCount || 0,
+        device.createdAt,
+      ];
+    }));
+  };
 
   const activeCount = devices.filter((device) => device.status !== "revoked").length;
   const revokedCount = devices.filter((device) => device.status === "revoked").length;
@@ -133,6 +166,9 @@ function DevicesPage() {
                 <SelectItem value="revoked">مسحوبة الصلاحية</SelectItem>
               </SelectContent>
             </Select>
+            <Button variant="outline" size="sm" onClick={exportFilteredDevices} disabled={filteredDevices.length === 0}>
+              <Download className="ml-2 size-4" /> تصدير النتائج
+            </Button>
             <Button variant="outline" onClick={() => void fetchDevices()}>تحديث القائمة</Button>
           </div>
         </div>
@@ -151,7 +187,7 @@ function DevicesPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredDevices.map((device) => {
+              {visibleDevices.map((device) => {
                 const owners = [...(customerNamesByMac.get(normalizeMac(device.macAddress)) || [])];
                 const revoked = device.status === "revoked";
                 return (
@@ -179,12 +215,19 @@ function DevicesPage() {
                   </tr>
                 );
               })}
-              {filteredDevices.length === 0 && (
+          {filteredDevices.length === 0 && (
                 <tr><td colSpan={7} className="px-5 py-10 text-center text-muted-foreground">لا توجد أجهزة مطابقة للبحث.</td></tr>
               )}
             </tbody>
           </table>
         </div>
+        <PaginationControls
+          total={filteredDevices.length}
+          page={page}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={(value) => { setPageSize(value); setPage(1); }}
+        />
       </Card>
 
       <AlertDialog open={!!pendingAction} onOpenChange={(open) => !open && !saving && setPendingAction(null)}>

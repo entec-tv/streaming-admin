@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "@/lib/notifications";
-import { Pencil, Plus, ShieldBan, ShieldCheck, Search, MonitorSmartphone, Tv, Trash2, Settings, Smartphone, CalendarClock, MoreHorizontal, ListPlus, Power, LockKeyhole } from "lucide-react";
+import { Pencil, Plus, ShieldBan, ShieldCheck, Search, MonitorSmartphone, Tv, Trash2, Settings, Smartphone, CalendarClock, MoreHorizontal, ListPlus, Power, LockKeyhole, Download } from "lucide-react";
 import { z } from "zod";
 import {
   AlertDialog,
@@ -48,6 +48,8 @@ import { api } from "@/services/api";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { formatMacAddress } from "@/lib/utils";
 import { useAuth } from "@/store/auth";
+import { PaginationControls } from "@/components/PaginationControls";
+import { datedCsvFilename, downloadCsv } from "@/lib/csv-export";
 
 export const Route = createFileRoute("/customers")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -98,6 +100,8 @@ function CustomersPage() {
   const canManage = role === "owner" || role === "admin";
 
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [open, setOpen] = useState(false);
   const [submittingCustomer, setSubmittingCustomer] = useState(false);
   const [name, setName] = useState("");
@@ -160,6 +164,38 @@ function CustomersPage() {
       (c) => c.name.toLowerCase().includes(q) || c.subscriptions.some(s => (s.username ?? "").toLowerCase().includes(q)) || c.subscriptions.some(s => (s.macAddress || "").toLowerCase().includes(q))
     );
   }, [customers, query]);
+
+  const visibleCustomers = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, page, pageSize]);
+
+  useEffect(() => setPage(1), [query]);
+  useEffect(() => {
+    const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
+    setPage((current) => Math.min(current, pages));
+  }, [filtered.length, pageSize]);
+
+  const exportFilteredCustomers = () => {
+    downloadCsv(datedCsvFilename("customers"), [
+      "اسم العميل", "الحالة", "تاريخ الإنشاء", "عدد الاشتراكات", "عدد الأجهزة", "عناوين MAC", "آخر ظهور",
+    ], filtered.map((customer) => {
+      const macAddresses = [...new Set(customer.subscriptions.map((subscription) => subscription.macAddress).filter(Boolean))];
+      const lastActive = customer.subscriptions
+        .map((subscription) => subscription.lastActive || "")
+        .filter(Boolean)
+        .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] || "";
+      return [
+        customer.name,
+        customer.status === "active" ? "نشط" : "محظور",
+        customer.createdAt,
+        customer.subscriptions.length,
+        macAddresses.length,
+        macAddresses.join(" | "),
+        lastActive,
+      ];
+    }));
+  };
 
   const openCreate = () => {
     setName("");
@@ -644,15 +680,20 @@ function CustomersPage() {
               </div>
             )}
           </div>
-          <div className="relative w-full max-w-xs">
-            <Search className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="بحث بالاسم أو اليوزرنيم أو الماك أدرس"
-              className="pr-9"
-              maxLength={60}
-            />
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            <div className="relative min-w-56 flex-1 sm:w-64 sm:flex-none">
+              <Search className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="بحث بالاسم أو اليوزرنيم أو الماك أدرس"
+                className="pr-9"
+                maxLength={60}
+              />
+            </div>
+            <Button variant="outline" size="sm" onClick={exportFilteredCustomers} disabled={filtered.length === 0}>
+              <Download className="ml-2 size-4" /> تصدير النتائج
+            </Button>
           </div>
         </div>
 
@@ -676,7 +717,7 @@ function CustomersPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((c) => (
+              {visibleCustomers.map((c) => (
                 <tr key={c._id} className="border-b border-border/50 last:border-0 hover:bg-muted/40">
                   <td className="px-5 py-3">
                     {canManage && <Checkbox 
@@ -733,7 +774,7 @@ function CustomersPage() {
               ))}
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-10 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-5 py-10 text-center text-muted-foreground">
                     لا يوجد عملاء مطابقين
                   </td>
                 </tr>
@@ -741,6 +782,13 @@ function CustomersPage() {
             </tbody>
           </table>
         </div>
+        <PaginationControls
+          total={filtered.length}
+          page={page}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={(value) => { setPageSize(value); setPage(1); }}
+        />
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>

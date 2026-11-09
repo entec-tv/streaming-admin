@@ -1,11 +1,12 @@
 import { Link } from "@tanstack/react-router";
-import { LayoutDashboard, MonitorSmartphone, Server, LogOut, Satellite, Package, Users, Download, Smartphone, ClipboardList, CircleDollarSign } from "lucide-react";
+import { LayoutDashboard, MonitorSmartphone, Server, LogOut, Satellite, Package, Users, Download, Smartphone, ClipboardList, CircleDollarSign, Bell } from "lucide-react";
 import { useAuth } from "@/store/auth";
 
 const nav = [
   { to: "/", label: "الرئيسية", icon: LayoutDashboard, exact: true },
   { to: "/customers", label: "إدارة العملاء", icon: MonitorSmartphone, exact: false },
   { to: "/devices", label: "إدارة الأجهزة", icon: Smartphone, exact: false },
+  { to: "/alerts", label: "التنبيهات", icon: Bell, exact: false },
   { to: "/billing", label: "الفوترة والدفعات", icon: CircleDollarSign, exact: false },
   { to: "/hosts", label: "السيرفرات", icon: Server, exact: false },
   { to: "/plans", label: "باقات التطبيق", icon: Package, exact: false },
@@ -20,6 +21,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
     if (to === "/billing") return role === "owner" || role === "admin";
     if (to === "/admin-users") return role === "owner";
     if (to === "/audit-logs") return role === "owner" || role === "admin";
+    if (to === "/alerts") return role === "owner" || role === "admin";
     return true;
   });
 

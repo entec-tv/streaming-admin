@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
-import { CircleDollarSign, Clock3, Plus, ReceiptText, RotateCcw, Search, type LucideIcon } from "lucide-react";
+import { CircleDollarSign, Clock3, Download, Plus, ReceiptText, RotateCcw, Search, type LucideIcon } from "lucide-react";
 import { z } from "zod";
 import { AppShell } from "@/components/layout/AppShell";
 import { RequireAuth } from "@/components/RequireAuth";
@@ -15,6 +15,7 @@ import { api, endpoints } from "@/services/api";
 import type { CreatePaymentInput, PaymentMethod, PaymentRecord, PaymentStatus, PaymentSummary } from "@/services/types";
 import { useAuth } from "@/store/auth";
 import { useData } from "@/store/data-store";
+import { datedCsvFilename, downloadCsv } from "@/lib/csv-export";
 
 export const Route = createFileRoute("/billing")({
   head: () => ({ meta: [{ title: "الفوترة والدفعات — EN TEC Server" }] }),
@@ -149,6 +150,24 @@ function BillingPage() {
     setSearch(searchInput.trim());
   };
 
+  const exportCurrentPaymentsPage = () => {
+    downloadCsv(datedCsvFilename(`payments-page-${page}`), [
+      "رقم السجل", "العميل", "الاشتراك", "المبلغ", "العملة", "طريقة الدفع", "الحالة", "المرجع", "سجلها", "تاريخ التسجيل", "تاريخ الدفع",
+    ], payments.map((payment) => [
+      payment._id,
+      payment.customerName,
+      payment.subscriptionLabel,
+      payment.amount,
+      payment.currency,
+      methodLabels[payment.method] || payment.method,
+      statusLabels[payment.status] || payment.status,
+      payment.reference,
+      payment.createdByUsername,
+      payment.createdAt,
+      payment.paidAt,
+    ]));
+  };
+
   const createPayment = async () => {
     const parsed = paymentSchema.safeParse(form);
     if (!parsed.success) {
@@ -232,6 +251,9 @@ function BillingPage() {
                 <SelectItem value="cancelled">ملغي</SelectItem>
               </SelectContent>
             </Select>
+            <Button variant="outline" size="sm" onClick={exportCurrentPaymentsPage} disabled={payments.length === 0 || loading}>
+              <Download className="ml-2 size-4" /> تصدير الصفحة الحالية
+            </Button>
           </div>
         </div>
 

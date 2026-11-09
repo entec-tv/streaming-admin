@@ -52,4 +52,6 @@ export const endpoints = {
   billingStatus: (id: string) => `/billing/${id}/status`,
   appUpdates: "/app-updates",
   appUpdate: (platform: string) => `/app-updates/${platform}`,
+  appUpdateHistory: (platform: string) => `/app-updates/${platform}/history`,
+  appUpdateHistoryRestore: (platform: string, historyId: string) => `/app-updates/${platform}/history/${historyId}/restore`,
 };
