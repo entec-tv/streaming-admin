@@ -30,6 +30,7 @@ interface DataContextValue {
   
   devices: Device[];
   fetchDevices: () => Promise<void>;
+  searchDevice: (macAddress: string) => Promise<Device | null>;
   revokeDevice: (macAddress: string, deviceKey?: string) => Promise<boolean>;
   restoreDevice: (macAddress: string) => Promise<boolean>;
   
@@ -106,7 +107,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isAuthed || !ready || !role) return;
 
-    fetchDevices();
     if (role === "owner") fetchAdmins();
     else setAdmins([]);
 
@@ -271,6 +271,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const searchDevice = useCallback(async (macAddress: string): Promise<Device | null> => {
+    try {
+      const res = await api.get('/devices/search', { params: { macAddress } });
+      return res.data ? mapDevice(res.data) : null;
+    } catch (err) {
+      if ((err as any)?.response?.status !== 401) {
+        toast.error((err as any)?.response?.data?.message || "تعذر البحث عن الجهاز");
+      }
+      throw err;
+    }
+  }, []);
+
   const revokeDevice = useCallback(async (macAddress: string, deviceKey?: string) => {
     try {
       await api.delete(`/devices/${encodeURIComponent(macAddress)}`, { data: { deviceKey } });
@@ -286,13 +298,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
           ? { ...device, status: "revoked", revokedAt: new Date().toISOString() }
           : device,
       ));
-      await fetchDevices();
       return true;
     } catch (err: any) {
       toast.error(err.response?.data?.message || "تعذر إيقاف الجهاز");
       return false;
     }
-  }, [fetchDevices]);
+  }, []);
 
   const restoreDevice = useCallback(async (macAddress: string) => {
     try {
@@ -363,6 +374,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       devices,
       admins,
       fetchDevices,
+      searchDevice,
       revokeDevice,
       restoreDevice,
       fetchAdmins,
@@ -406,6 +418,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       devices,
       admins,
       fetchDevices,
+      searchDevice,
       revokeDevice,
       restoreDevice,
       fetchAdmins,

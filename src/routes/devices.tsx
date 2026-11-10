@@ -1,13 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
-import { CalendarClock, Download, MonitorSmartphone, RotateCcw, Search, ShieldBan, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { LoaderCircle, MonitorSmartphone, RotateCcw, Search, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { RequireAuth } from "@/components/RequireAuth";
-import { StatCard } from "@/components/StatCard";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,8 +21,6 @@ import { api } from "@/services/api";
 import type { Device } from "@/services/types";
 import { useData } from "@/store/data-store";
 import { useAuth } from "@/store/auth";
-import { PaginationControls } from "@/components/PaginationControls";
-import { datedCsvFilename, downloadCsv } from "@/lib/csv-export";
 
 export const Route = createFileRoute("/devices")({
   head: () => ({ meta: [{ title: "إدارة الأجهزة — EN TEC Server" }] }),
@@ -46,19 +42,16 @@ const formatDate = (value?: string | null) => {
 };
 
 function DevicesPage() {
-  const { devices, customers, fetchDevices, revokeDevice, restoreDevice } = useData();
+  const { customers, searchDevice, revokeDevice, restoreDevice } = useData();
   const { role } = useAuth();
   const canManage = role === "owner" || role === "admin";
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [foundDevice, setFoundDevice] = useState<Device | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [searchFailed, setSearchFailed] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [pendingAction, setPendingAction] = useState<DeviceAction>(null);
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    void fetchDevices();
-  }, [fetchDevices]);
 
   const customerNamesByMac = useMemo(() => {
     const names = new Map<string, Set<string>>();
@@ -74,49 +67,28 @@ function DevicesPage() {
     return names;
   }, [customers]);
 
-  const filteredDevices = useMemo(() => {
-    const term = query.trim().toLowerCase();
-    return [...devices]
-      .filter((device) => statusFilter === "all" || device.status === statusFilter)
-      .filter((device) => {
-        if (!term) return true;
-        const owners = [...(customerNamesByMac.get(normalizeMac(device.macAddress)) || [])].join(" ").toLowerCase();
-        return device.macAddress.toLowerCase().includes(term) || owners.includes(term);
-      })
-      .sort((a, b) => new Date(b.lastActive || 0).getTime() - new Date(a.lastActive || 0).getTime());
-  }, [customerNamesByMac, devices, query, statusFilter]);
+  const handleSearch = async () => {
+    const macAddress = query.trim();
+    if (!macAddress) {
+      setFoundDevice(null);
+      setHasSearched(false);
+      setSearchFailed(false);
+      return;
+    }
 
-  const visibleDevices = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filteredDevices.slice(start, start + pageSize);
-  }, [filteredDevices, page, pageSize]);
-
-  useEffect(() => setPage(1), [query, statusFilter]);
-  useEffect(() => {
-    const pages = Math.max(1, Math.ceil(filteredDevices.length / pageSize));
-    setPage((current) => Math.min(current, pages));
-  }, [filteredDevices.length, pageSize]);
-
-  const exportFilteredDevices = () => {
-    downloadCsv(datedCsvFilename("devices"), [
-      "عنوان MAC", "العملاء المرتبطون", "الحالة", "آخر ظهور", "بداية التجربة", "انتهاء التجربة", "عدد قوائم التشغيل", "تاريخ التسجيل",
-    ], filteredDevices.map((device) => {
-      const owners = [...(customerNamesByMac.get(normalizeMac(device.macAddress)) || [])];
-      return [
-        device.macAddress,
-        owners.join(" | "),
-        device.status === "revoked" ? "مسحوبة الصلاحية" : "مفعّل",
-        device.lastActive,
-        device.trialStartsAt,
-        device.trialEndsAt,
-        device.playlistCount || 0,
-        device.createdAt,
-      ];
-    }));
+    setSearching(true);
+    setFoundDevice(null);
+    setHasSearched(true);
+    setSearchFailed(false);
+    try {
+      const device = await searchDevice(macAddress);
+      setFoundDevice(device);
+    } catch {
+      setSearchFailed(true);
+    } finally {
+      setSearching(false);
+    }
   };
-
-  const activeCount = devices.filter((device) => device.status !== "revoked").length;
-  const revokedCount = devices.filter((device) => device.status === "revoked").length;
 
   const confirmAction = async () => {
     if (!pendingAction || saving) return;
@@ -128,6 +100,12 @@ function DevicesPage() {
 
     if (succeeded) {
       setPendingAction(null);
+      const revokedAt = new Date().toISOString();
+      setFoundDevice({
+        ...device,
+        status: action === "revoke" ? "revoked" : "active",
+        revokedAt: action === "revoke" ? revokedAt : null,
+      });
       if (action === "restore") {
         toast.success("أُعيد تفعيل سجل الجهاز. أعد ربط اشتراك به إذا لزم الأمر.");
       } else {
@@ -142,92 +120,114 @@ function DevicesPage() {
     setSaving(false);
   };
 
+  const owners = foundDevice
+    ? [...(customerNamesByMac.get(normalizeMac(foundDevice.macAddress)) || [])]
+    : [];
+  const revoked = foundDevice?.status === "revoked";
+
   return (
-    <AppShell title="إدارة الأجهزة" description="جرد الأجهزة المسجلة وحالة صلاحيتها وربطها بالعملاء">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <StatCard label="إجمالي الأجهزة" value={devices.length} icon={MonitorSmartphone} />
-        <StatCard label="سجلات مفعّلة" value={activeCount} icon={CalendarClock} />
-        <StatCard label="صلاحيات مسحوبة" value={revokedCount} icon={ShieldBan} />
-      </div>
-
-      <Card className="surface-card mt-6 border-border/70 p-0">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 px-5 py-4">
-          <h2 className="text-base font-extrabold">الأجهزة ({filteredDevices.length})</h2>
-          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-            <div className="relative min-w-56 flex-1 sm:flex-none">
-              <Search className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="بحث بالـMAC أو العميل" className="pr-9" />
+    <AppShell title="إدارة الأجهزة" description="ابحث عن جهاز محدد باستخدام عنوان MAC">
+      <Card className="surface-card border-border/70 p-0">
+        <form
+          className="border-b border-border/70 px-5 py-5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleSearch();
+          }}
+        >
+          <label htmlFor="device-mac-search" className="mb-2 block text-sm font-bold">
+            البحث بعنوان MAC
+          </label>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="device-mac-search"
+                dir="ltr"
+                autoComplete="off"
+                spellCheck={false}
+                maxLength={512}
+                value={query}
+                disabled={searching}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setFoundDevice(null);
+                  setHasSearched(false);
+                  setSearchFailed(false);
+                }}
+                placeholder="أدخل عنوان MAC كاملًا"
+                className="pl-10 font-mono text-left"
+              />
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-40"><SelectValue placeholder="الحالة" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">كل الحالات</SelectItem>
-                <SelectItem value="active">مفعّلة</SelectItem>
-                <SelectItem value="revoked">مسحوبة الصلاحية</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button variant="outline" size="sm" onClick={exportFilteredDevices} disabled={filteredDevices.length === 0}>
-              <Download className="ml-2 size-4" /> تصدير النتائج
+            <Button type="submit" disabled={searching || !query.trim()}>
+              {searching ? <LoaderCircle className="ml-2 size-4 animate-spin" /> : <Search className="ml-2 size-4" />}
+              بحث
             </Button>
-            <Button variant="outline" onClick={() => void fetchDevices()}>تحديث القائمة</Button>
           </div>
-        </div>
+          <p className="mt-2 text-xs text-muted-foreground">تظهر نتيجة الجهاز المطابق فقط بعد البحث.</p>
+        </form>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-right text-sm">
-            <thead className="text-xs text-muted-foreground">
-              <tr className="border-b border-border/70">
-                <th className="px-5 py-3 font-bold">عنوان الجهاز</th>
-                <th className="px-5 py-3 font-bold">العميل المرتبط</th>
-                <th className="px-5 py-3 font-bold">الحالة</th>
-                <th className="px-5 py-3 font-bold">آخر ظهور</th>
-                <th className="px-5 py-3 font-bold">انتهاء التجربة</th>
-                <th className="px-5 py-3 font-bold">قوائم التشغيل</th>
-                <th className="px-5 py-3 font-bold">الإجراء</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleDevices.map((device) => {
-                const owners = [...(customerNamesByMac.get(normalizeMac(device.macAddress)) || [])];
-                const revoked = device.status === "revoked";
-                return (
-                  <tr key={device._id} className="border-b border-border/50 last:border-0 hover:bg-muted/40">
-                    <td className="px-5 py-3 font-mono font-bold" dir="ltr">{device.macAddress}</td>
-                    <td className="px-5 py-3">{owners.length ? owners.join("، ") : <span className="text-muted-foreground">غير مرتبط</span>}</td>
-                    <td className="px-5 py-3">
-                      <span className={revoked ? "rounded-full bg-destructive/10 px-2.5 py-1 text-xs font-bold text-destructive" : "rounded-full bg-success/10 px-2.5 py-1 text-xs font-bold text-success"}>
-                        {revoked ? "مسحوبة الصلاحية" : "مفعّل"}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 text-muted-foreground">{formatDate(device.lastActive)}</td>
-                    <td className="px-5 py-3 text-muted-foreground">{formatDate(device.trialEndsAt)}</td>
-                    <td className="px-5 py-3">{device.playlistCount || 0}</td>
-                    <td className="px-5 py-3">
-                      {canManage && <Button
+        {searching ? (
+          <div className="flex items-center justify-center gap-2 px-5 py-12 text-sm text-muted-foreground">
+            <LoaderCircle className="size-4 animate-spin" /> جارٍ البحث عن الجهاز...
+          </div>
+        ) : foundDevice ? (
+          <div className="overflow-x-auto">
+            <div className="px-5 pt-5 text-sm font-extrabold">نتيجة البحث</div>
+            <table className="w-full min-w-[820px] text-right text-sm">
+              <thead className="text-xs text-muted-foreground">
+                <tr className="border-b border-border/70">
+                  <th className="px-5 py-3 font-bold">عنوان الجهاز</th>
+                  <th className="px-5 py-3 font-bold">العميل المرتبط</th>
+                  <th className="px-5 py-3 font-bold">الحالة</th>
+                  <th className="px-5 py-3 font-bold">آخر ظهور</th>
+                  <th className="px-5 py-3 font-bold">انتهاء التجربة</th>
+                  <th className="px-5 py-3 font-bold">قوائم التشغيل</th>
+                  <th className="px-5 py-3 font-bold">الإجراء</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b border-border/50 last:border-0 hover:bg-muted/40">
+                  <td className="px-5 py-3 font-mono font-bold" dir="ltr">{foundDevice.macAddress}</td>
+                  <td className="px-5 py-3">{owners.length ? owners.join("، ") : <span className="text-muted-foreground">غير مرتبط</span>}</td>
+                  <td className="px-5 py-3">
+                    <span className={revoked ? "rounded-full bg-destructive/10 px-2.5 py-1 text-xs font-bold text-destructive" : "rounded-full bg-success/10 px-2.5 py-1 text-xs font-bold text-success"}>
+                      {revoked ? "مسحوبة الصلاحية" : "مفعّل"}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3 text-muted-foreground">{formatDate(foundDevice.lastActive)}</td>
+                  <td className="px-5 py-3 text-muted-foreground">{formatDate(foundDevice.trialEndsAt)}</td>
+                  <td className="px-5 py-3">{foundDevice.playlistCount || 0}</td>
+                  <td className="px-5 py-3">
+                    {canManage && (
+                      <Button
                         size="sm"
                         variant={revoked ? "outline" : "destructive"}
-                        onClick={() => setPendingAction({ device, action: revoked ? "restore" : "revoke" })}
+                        onClick={() => setPendingAction({ device: foundDevice, action: revoked ? "restore" : "revoke" })}
                       >
                         {revoked ? <RotateCcw className="ml-1 size-4" /> : <Trash2 className="ml-1 size-4" />}
                         {revoked ? "إعادة التفعيل" : "سحب الصلاحية"}
-                      </Button>}
-                    </td>
-                  </tr>
-                );
-              })}
-          {filteredDevices.length === 0 && (
-                <tr><td colSpan={7} className="px-5 py-10 text-center text-muted-foreground">لا توجد أجهزة مطابقة للبحث.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        <PaginationControls
-          total={filteredDevices.length}
-          page={page}
-          pageSize={pageSize}
-          onPageChange={setPage}
-          onPageSizeChange={(value) => { setPageSize(value); setPage(1); }}
-        />
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        ) : searchFailed ? (
+          <div className="px-5 py-12 text-center text-sm text-muted-foreground">
+            تعذر إتمام البحث. حاول مرة أخرى.
+          </div>
+        ) : hasSearched ? (
+          <div className="px-5 py-12 text-center text-sm text-muted-foreground">
+            لم يتم العثور على جهاز بهذا العنوان.
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-3 px-5 py-12 text-center text-sm text-muted-foreground">
+            <MonitorSmartphone className="size-8 opacity-60" />
+            أدخل عنوان MAC كاملًا لعرض بيانات الجهاز وإدارته.
+          </div>
+        )}
       </Card>
 
       <AlertDialog open={!!pendingAction} onOpenChange={(open) => !open && !saving && setPendingAction(null)}>

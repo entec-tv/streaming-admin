@@ -195,7 +195,7 @@ function buildAlerts(customers: Customer[], devices: Device[], now: number): Ope
 
 function AlertsPage() {
   const { role } = useAuth();
-  const { customers, devices } = useData();
+  const { customers, devices, fetchDevices } = useData();
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState("all");
   const [severityFilter, setSeverityFilter] = useState("all");
@@ -205,6 +205,10 @@ function AlertsPage() {
     const interval = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (role === "owner" || role === "admin") void fetchDevices();
+  }, [fetchDevices, role]);
 
   const alerts = useMemo(() => buildAlerts(customers, devices, now), [customers, devices, now]);
   const filteredAlerts = useMemo(() => {
