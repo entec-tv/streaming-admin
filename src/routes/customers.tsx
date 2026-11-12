@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "@/lib/notifications";
-import { Pencil, Plus, ShieldBan, ShieldCheck, Search, MonitorSmartphone, Tv, Trash2, Settings, Smartphone, CalendarClock, MoreHorizontal, ListPlus, Power, LockKeyhole, Download } from "lucide-react";
+import { Pencil, Plus, ShieldBan, ShieldCheck, Search, MonitorSmartphone, Tv, Trash2, Settings, Smartphone, CalendarClock, MoreHorizontal, ListPlus, Power, LockKeyhole, Download, RotateCcw } from "lucide-react";
 import { z } from "zod";
 import {
   AlertDialog,
@@ -95,6 +95,8 @@ function CustomersPage() {
     updateCustomerStatus,
     deleteCustomer,
     revokeDevice,
+    searchDevice,
+    restoreDevice,
   } = useData();
   const { role } = useAuth();
   const canManage = role === "owner" || role === "admin";
@@ -114,6 +116,7 @@ function CustomersPage() {
   const [devicesCustomer, setDevicesCustomer] = useState<Customer | null>(null);
   const [deviceSearch, setDeviceSearch] = useState("");
   const [deviceStatusFilter, setDeviceStatusFilter] = useState<"all" | "active" | "attention">("all");
+  const [registeredDeviceStatuses, setRegisteredDeviceStatuses] = useState<Record<string, "active" | "revoked" | "missing" | "checking" | "unknown">>({});
   const [addDeviceCustomer, setAddDeviceCustomer] = useState<Customer | null>(null);
   const [addingSubscriptionToDevice, setAddingSubscriptionToDevice] = useState(false);
   const [editingSubscription, setEditingSubscription] = useState<{ index: number; subscription: Customer["subscriptions"][number] } | null>(null);
@@ -375,13 +378,72 @@ function CustomersPage() {
     () => activeDevicesCustomer ? getCustomerDevices(activeDevicesCustomer) : [],
     [activeDevicesCustomer],
   );
+  useEffect(() => {
+    if (!devicesCustomer || selectedDevices.length === 0) {
+      setRegisteredDeviceStatuses({});
+      return;
+    }
+
+    let cancelled = false;
+    const normalizedMac = (macAddress: string) => macAddress.toUpperCase().replace(/[^A-F0-9]/g, "");
+    setRegisteredDeviceStatuses(Object.fromEntries(
+      selectedDevices.map((device) => [normalizedMac(device.macAddress), "checking"]),
+    ));
+
+    void Promise.all(selectedDevices.map(async (device) => {
+      const key = normalizedMac(device.macAddress);
+      try {
+        const registeredDevice = await searchDevice(device.macAddress);
+        return [key, registeredDevice?.status ?? "missing"] as const;
+      } catch {
+        return [key, "unknown"] as const;
+      }
+    })).then((results) => {
+      if (!cancelled) setRegisteredDeviceStatuses(Object.fromEntries(results));
+    });
+
+    return () => { cancelled = true; };
+  }, [devicesCustomer?._id, selectedDevices, searchDevice]);
+  const getRegisteredDeviceStatus = (device: (typeof selectedDevices)[number]) => {
+    const key = device.macAddress.toUpperCase().replace(/[^A-F0-9]/g, "");
+    return registeredDeviceStatuses[key] || "checking";
+  };
   const getDeviceAccessState = (device: (typeof selectedDevices)[number]) => {
+    const registeredStatus = getRegisteredDeviceStatus(device);
+    if (registeredStatus === "revoked") return "revoked" as const;
+    if (registeredStatus === "checking" || registeredStatus === "unknown") return registeredStatus;
     if (!device.appActive) return "disabled" as const;
     if (!device.appExpiry) return "active" as const;
     const remaining = new Date(device.appExpiry).getTime() - Date.now();
     if (remaining < 0) return "expired" as const;
     if (remaining <= 7 * 24 * 60 * 60 * 1000) return "expiring" as const;
     return "active" as const;
+  };
+  const getDeviceAccessLabel = (device: (typeof selectedDevices)[number]) => {
+    const state = getDeviceAccessState(device);
+    if (state === "revoked") return "سجل الجهاز مسحوب الصلاحية";
+    if (state === "checking") return "جارٍ التحقق من سجل الجهاز";
+    if (state === "unknown") return "تعذر التحقق من سجل الجهاز";
+    if (state === "disabled") return "التطبيق معطل";
+    if (state === "expired") return "انتهى التفعيل";
+    if (state === "expiring") return "ينتهي خلال 7 أيام";
+    return "التطبيق مفعل";
+  };
+  const getDeviceAccessBadgeClass = (device: (typeof selectedDevices)[number]) => {
+    const state = getDeviceAccessState(device);
+    if (state === "active") return "rounded-full border border-success/20 bg-success/10 px-3 py-1.5 text-xs font-bold text-success";
+    if (["revoked", "disabled", "expired"].includes(state)) return "rounded-full border border-destructive/20 bg-destructive/10 px-3 py-1.5 text-xs font-bold text-destructive";
+    return "rounded-full border border-warning/25 bg-warning/10 px-3 py-1.5 text-xs font-bold text-warning";
+  };
+  const restoreRegisteredDevice = async (device: (typeof selectedDevices)[number]) => {
+    setSavingDeviceAction(true);
+    const restored = await restoreDevice(device.macAddress);
+    if (restored) {
+      const key = device.macAddress.toUpperCase().replace(/[^A-F0-9]/g, "");
+      setRegisteredDeviceStatuses((previous) => ({ ...previous, [key]: "active" }));
+      toast.success("أُعيد تفعيل سجل الجهاز");
+    }
+    setSavingDeviceAction(false);
   };
   const activeDeviceCount = selectedDevices.filter((device) => ["active", "expiring"].includes(getDeviceAccessState(device))).length;
   const needsAttentionDeviceCount = selectedDevices.filter((device) => getDeviceAccessState(device) !== "active").length;
@@ -955,7 +1017,7 @@ function CustomersPage() {
                   <div className="col-span-2 rounded-xl border border-warning/25 bg-warning/5 p-4 sm:col-span-1">
                     <span className="block text-xs text-muted-foreground">تحتاج متابعة</span>
                     <b className="mt-1 block text-xl text-warning">{needsAttentionDeviceCount}</b>
-                    <span className="text-[11px] text-muted-foreground">انتهاء قريب أو تفعيل منتهي/معطل</span>
+                    <span className="text-[11px] text-muted-foreground">حظر الجهاز أو انتهاء/تعطيل التفعيل</span>
                   </div>
                 </div>
                 <div className="flex flex-col gap-3 sm:flex-row">
@@ -988,10 +1050,11 @@ function CustomersPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={getDeviceAccessState(device) === "active" ? "rounded-full border border-success/20 bg-success/10 px-3 py-1.5 text-xs font-bold text-success" : getDeviceAccessState(device) === "disabled" || getDeviceAccessState(device) === "expired" ? "rounded-full border border-destructive/20 bg-destructive/10 px-3 py-1.5 text-xs font-bold text-destructive" : "rounded-full border border-warning/25 bg-warning/10 px-3 py-1.5 text-xs font-bold text-warning"}>{getDeviceAccessState(device) === "disabled" ? "التطبيق معطل" : getDeviceAccessState(device) === "expired" ? "انتهى التفعيل" : getDeviceAccessState(device) === "expiring" ? "ينتهي خلال 7 أيام" : "التطبيق مفعل"}</span>
+                    <span className={getDeviceAccessBadgeClass(device)}>{getDeviceAccessLabel(device)}</span>
                     {canManage && <DropdownMenu>
                       <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-8" aria-label={`إجراءات الجهاز ${device.macAddress}`}><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="text-right">
+                        {getRegisteredDeviceStatus(device) === "revoked" && <DropdownMenuItem disabled={savingDeviceAction} onSelect={() => void restoreRegisteredDevice(device)}><RotateCcw className="size-4" /> إعادة تفعيل سجل الجهاز</DropdownMenuItem>}
                         <DropdownMenuItem onSelect={() => saveDeviceSubscriptions(device, { appActive: !device.appActive })}><Power className="size-4" /> {device.appActive ? "تعطيل التطبيق" : "تفعيل التطبيق"}</DropdownMenuItem>
                         <DropdownMenuItem onSelect={() => { setDeviceExpiryOption("1_week"); setDeviceExpiryDate(""); setExpiryDevice(device); }}><CalendarClock className="size-4" /> مدة التفعيل</DropdownMenuItem>
                         <DropdownMenuSeparator />
